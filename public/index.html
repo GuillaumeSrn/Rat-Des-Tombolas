@@ -112,7 +112,8 @@
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .chip { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--border); font-size: 13.5px; transition: border-color .2s, background .2s, color .2s; }
   .chip:hover { border-color: var(--border-strong); }
-  .chip .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+  .chip .n:hover { color: var(--accent-soft); text-decoration: underline; }
   .chip .r { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .chip.quiet, .chip.quiet .n { color: var(--text-dim); }
   .chip.active { border-color: var(--live-soft); background: var(--live-tint); }
@@ -316,7 +317,7 @@ function renderChans() {
   const grid = $('chans');
   for (const c of list) {
     let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><span class="n">${esc(name(c))}</span><span class="r"></span>`; }
+    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${url(c.chan)}" target="_blank" rel="noopener">${esc(name(c))}</a><span class="r"></span>`; }
     el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : '');
     el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
     el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok');
