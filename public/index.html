@@ -318,6 +318,8 @@ function renderChans() {
     el.lastChild.textContent = c.quiet ? '' : c.rate + '/min';
     grid.appendChild(el);
   }
+  const keep = new Set(list.map(c => c.chan));                 // chaînes disparues (liste rechargée après un redémarrage)
+  for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
 }
 function renderHistory() {
   const items = [...history].reverse();
