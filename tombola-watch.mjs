@@ -23,7 +23,6 @@ const LOG_RX = /tombola|tirage|ticket|gagnant|\blots?\b|giveaway/i;   // plus la
 const STRONG_RX = /1 ?(€|euros?)|tickets?|zevent\.fr\/don|en cours/i;   // pattern d'annonce : "1€ = 1 ticket", lien de don, "tombola en cours"
 const QUESTION_RX = /\?/;                                             // "à quand ta tombola ?" n'est pas une annonce
 const FUTURE_RX = /prochaine|bient[ôo]t|tout [àa] l.heure|demain/i;   // "prochaine tombola à 16h30" non plus
-const BURST_MS = 2 * 60_000;          // annonce sans pattern fort : il faut qu'un humain (mod/streamer) la répète dans ce délai
 const DEDUP_MS = 30 * 60_000;         // une même annonce ne redéclenche pas pendant ce délai (messages automatiques des bots)
 const END_NO_OFFICIAL_MS = 8 * 60_000;// fin : plus aucun message officiel parlant de tombola depuis ce délai...
 const END_RATIO_MAX = 0.02;           // ...et moins de 2 % du chat en parle
@@ -54,9 +53,9 @@ const log = (s) => console.log(`${ts()} ${s}`);
 const jsonl = (file, obj) => appendFileSync(file, JSON.stringify(obj) + '\n');
 
 // ───────────────────────── État ─────────────────────────
-// msgs: fenêtre de mesure du chat ; modbot: derniers messages officiels ; users: pseudos récents (détection des réponses) ; pending/seen: annonces candidates / déjà exploitées
+// msgs: fenêtre de mesure du chat ; modbot: derniers messages officiels ; users: pseudos récents (détection des réponses) ; seen: annonces déjà exploitées
 const chans = new Map();       // '#login' -> état, rempli par loadChans()
-const newChan = () => ({ msgs: [], modbot: [], users: new Map(), pending: [], seen: new Map(), state: 'INACTIVE', activeSince: null, alertId: null, lastAlertId: null,
+const newChan = () => ({ msgs: [], modbot: [], users: new Map(), seen: new Map(), state: 'INACTIVE', activeSince: null, alertId: null, lastAlertId: null,
   lastTrustedText: null, lastTrustedRole: null, lastTrustedAt: null, lastOfficialAt: 0, lastMsgAt: null, endedAt: null, cooldownUntil: 0, rate: 0, maxRatio: 0 });
 
 async function loadChans() {
@@ -88,7 +87,6 @@ function role(badges, login) {
   return 'viewer';
 }
 const OFFICIAL_ROLES = new Set(['broadcaster', 'moderator', 'bot']);   // les VIP sont des viewers avec un badge
-const HUMAN_ROLES = new Set(['broadcaster', 'moderator']);
 
 function onChat(chan, login, badges, text, replyTo) {
   const c = chans.get(chan); if (!c) return;
@@ -113,16 +111,12 @@ function onChat(chan, login, badges, text, replyTo) {
   if (c.state === 'ACTIVE' || now < c.cooldownUntil) return;
   const n = normalize(text).slice(0, 80);
   if (c.seen.has(n) && now - c.seen.get(n) < DEDUP_MS) return;         // même annonce déjà exploitée (timer de bot)
-  if (STRONG_RX.test(text)) return startTombola(chan, c, 'announce', n);
-  if (!HUMAN_ROLES.has(r)) return;                                     // un bot sans pattern fort n'annonce rien
-  c.pending = c.pending.filter(p => now - p.t <= BURST_MS);
-  if (c.pending.some(p => p.n === n)) return startTombola(chan, c, 'repeat', n);
-  c.pending.push({ t: now, n });
+  if (STRONG_RX.test(text)) startTombola(chan, c, 'announce', n);      // sans pattern d'annonce, on ne déclenche pas (« tombola » seul est trop ambigu, même venant d'un mod)
 }
 
 function startTombola(chan, c, trigger, n) {
   const now = Date.now();
-  c.state = 'ACTIVE'; c.activeSince = now; c.pending = []; c.seen.set(n, now);
+  c.state = 'ACTIVE'; c.activeSince = now; c.seen.set(n, now);
   for (const [k, t] of c.seen) if (now - t > DEDUP_MS) c.seen.delete(k);
   const { total, matches, ratio } = measure(c, now);
   const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: +ratio.toFixed(4), trigger, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole, endedAt: null };
