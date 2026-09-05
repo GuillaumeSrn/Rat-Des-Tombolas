@@ -139,7 +139,7 @@ function snapshot() {
   return {
     ts: ts(), conn: { ...conn },
     chans: [...chans].map(([chan, c]) => ({
-      chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), state: c.state, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null, rate: c.rate,
+      chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), state: c.state, alertId: c.alertId, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null, rate: c.rate,
       quiet: !c.lastMsgAt || now - c.lastMsgAt > QUIET_AFTER_MS, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole,
     })),
   };
@@ -226,7 +226,9 @@ const server = createServer((req, res) => {
   if (url.pathname === '/test-alert') {                                    // fausse alerte pour tester la chaîne de notification, non loggée
     const chan = '#' + (url.searchParams.get('chan') || 'domingo');
     const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: 0.1234, trusted: 2, trigger: 'trusted', lastTrustedText: 'Test : tombola fictive, 1€ = 1 ticket', lastTrustedRole: 'moderator', endedAt: null, test: true };
-    pushHistory(alert); broadcast('alert', alert); log(`alerte de test ${chan} → ${sseClients.size} client(s)`);
+    const c = chans.get(chan);                                              // la chaîne passe aussi "en cours" pour tester la carte (retour au calme automatique)
+    if (c && c.state === 'INACTIVE') { c.state = 'ACTIVE'; c.activeSince = Date.now(); c.alertId = alert.id; c.lastTrustedText = alert.lastTrustedText; c.lastTrustedRole = 'moderator'; }
+    pushHistory(alert); broadcast('alert', alert); broadcast('state', snapshot()); log(`alerte de test ${chan} → ${sseClients.size} client(s)`);
     return json(res, 200, alert);
   }
   if (url.pathname === '/') {

@@ -3,103 +3,146 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>Rat des Tombolas</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐀</text></svg>">
 <style>
+  /* ═══════════ Thème ═══════════
+     Tokens sémantiques uniquement : aucun composant ne référence une couleur brute.
+     Sombre = défaut, clair = [data-theme="light"]. */
   :root {
-    --bg: #0e0e10; --bg-2: #18181b; --bg-3: #1f1f23; --line: #2a2a2e;
-    --text: #efeff1; --muted: #adadb8; --dim: #6b6b75;
-    --accent: #9147ff; --accent-2: #bf94ff; --live: #ff4d6d; --ok: #3ddc97; --warn: #f5a623;
-    --radius: 14px; --shadow: 0 10px 30px rgba(0,0,0,.35);
+    --bg: #0e0e10;            /* fond de page */
+    --surface: #18181b;       /* cartes, lignes, pilules */
+    --surface-2: #1f1f23;     /* boutons, tags, survols */
+    --surface-3: #2a2a30;     /* survol des boutons */
+    --inset: rgba(0,0,0,.28); /* citation dans une carte */
+    --border: #2a2a2e;
+    --border-strong: #3a3a40;
+    --text: #efeff1;
+    --text-muted: #adadb8;
+    --text-dim: #6b6b75;
+    --accent: #9147ff;
+    --accent-hover: #7d3ae0;
+    --accent-soft: #bf94ff;   /* liens */
+    --on-accent: #ffffff;
+    --live: #ff4d6d;
+    --live-soft: rgba(255,77,109,.5);
+    --live-tint: rgba(255,77,109,.07);
+    --danger-text: #ff8fa3;
+    --danger-border: #5a2a33;
+    --ok: #3ddc97;
+    --warn: #f5a623;
+    --warn-soft: rgba(245,166,35,.35);
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+    --glow: rgba(145,71,255,.45);
+    --radius: 14px;
+    color-scheme: dark;
   }
+  /* Palette claire : une seule définition. Le JS pose toujours data-theme (auto = réglage système résolu). */
+  :root[data-theme="light"] {
+    --bg: #f4f4f7; --surface: #ffffff; --surface-2: #f0eff5; --surface-3: #e6e4ee; --inset: rgba(0,0,0,.045);
+    --border: #e2e1e8; --border-strong: #cfcdd8;
+    --text: #17171c; --text-muted: #5c5b66; --text-dim: #9391a0;
+    --accent: #7c3aed; --accent-hover: #6b2fd6; --accent-soft: #6d3be0; --on-accent: #ffffff;
+    --live: #e6294f; --live-soft: rgba(230,41,79,.45); --live-tint: rgba(230,41,79,.06);
+    --danger-text: #c81e43; --danger-border: #f2b8c6;
+    --ok: #16a273; --warn: #d98c00; --warn-soft: rgba(217,140,0,.4);
+    --shadow: 0 10px 30px rgba(20,16,40,.08); --glow: rgba(124,58,237,.3);
+    color-scheme: light;
+  }
+
+  /* ═══════════ Base ═══════════ */
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; transition: background .25s, color .25s; }
   body { padding: 28px clamp(16px, 4vw, 48px) 60px; max-width: 1180px; margin: 0 auto; }
-  a { color: var(--accent-2); text-decoration: none; }
-  button { font: inherit; color: var(--text); background: var(--bg-3); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
-  button:hover { background: #2a2a30; border-color: #3a3a40; }
+  a { color: var(--accent-soft); text-decoration: none; }
+  button { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; cursor: pointer; transition: background .15s, border-color .15s, transform .1s, color .15s; }
+  button:hover { background: var(--surface-3); border-color: var(--border-strong); }
   button:active { transform: scale(.97); }
-  button.primary { background: var(--accent); border-color: var(--accent); }
-  button.primary:hover { background: #7d3ae0; }
-  button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
-  button.ghost:hover { color: var(--text); background: var(--bg-3); border-color: transparent; }
-  button.danger:hover { color: #ff8fa3; border-color: #5a2a33; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+  button.ghost:hover { color: var(--text); background: var(--surface-2); border-color: transparent; }
+  button.danger:hover { color: var(--danger-text); border-color: var(--danger-border); }
+  button.icon { padding: 6px 9px; line-height: 1; }
   button:disabled { opacity: .5; cursor: default; }
 
-  /* ── header ── */
+  /* ═══════════ En-tête ═══════════ */
   header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 34px; }
   .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
-  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px rgba(145,71,255,.45)); }
+  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px var(--glow)); }
   .brand h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
-  .brand p { margin: 0; font-size: 13px; color: var(--muted); }
-  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
-  .dot.ok { background: var(--ok); box-shadow: 0 0 0 0 rgba(61,220,151,.6); animation: ping 2.4s infinite; }
+  .brand p { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text-muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); flex: none; }
+  .dot.ok { background: var(--ok); color: var(--ok); animation: ping 2.4s infinite; }
   .dot.warn { background: var(--warn); }
-  .dot.live { background: var(--live); box-shadow: 0 0 0 0 rgba(255,77,109,.6); animation: ping 1.6s infinite; }
+  .dot.live { background: var(--live); color: var(--live); animation: ping 1.6s infinite; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  /* ── sections ── */
+  /* ═══════════ Sections ═══════════ */
   section { margin-bottom: 40px; }
   .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
-  .sec-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-  .sec-head .count { font-size: 12px; color: var(--dim); }
+  .sec-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .sec-head .count { font-size: 12px; color: var(--text-dim); }
   .sec-head .spacer { flex: 1; }
 
-  /* ── tombola en cours ── */
+  /* ═══════════ Tombolas en cours ═══════════ */
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
-  .card { position: relative; overflow: hidden; background: linear-gradient(160deg, var(--bg-2), var(--bg-3)); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 18px 16px; box-shadow: var(--shadow); animation: rise .45s cubic-bezier(.2,.8,.2,1) both; }
+  .card { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 18px 16px; box-shadow: var(--shadow); animation: rise .45s cubic-bezier(.2,.8,.2,1) both; transition: opacity .25s, transform .25s; }
+  .card.leaving { opacity: 0; transform: scale(.97); }
   .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: linear-gradient(var(--live), var(--accent)); }
-  .card .top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-  .avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 17px; color: #fff; background: var(--accent); flex: none; text-transform: uppercase; }
+  .card .close { position: absolute; top: 10px; right: 10px; opacity: 0; transition: opacity .15s; }
+  .card:hover .close { opacity: 1; }
+  .card .top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-right: 30px; }
+  .avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 17px; color: var(--on-accent); background: var(--accent); flex: none; text-transform: uppercase; }
   .card .name { font-weight: 650; font-size: 17px; }
-  .card .since { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .card .since { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
   .card .since b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-  .card .quote { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.04); color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
-  .card .quote small { display: block; margin-top: 4px; color: var(--dim); font-size: 12px; }
-  .card .foot { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .card .quote { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--inset); border: 1px solid var(--border); color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+  .card .quote:empty { display: none; }
+  .card .quote small { display: block; margin-top: 4px; color: var(--text-dim); font-size: 12px; }
+  .card .foot { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); }
   .card .foot .spacer { flex: 1; }
-  .empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 34px 20px; text-align: center; color: var(--muted); }
+  .empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 34px 20px; text-align: center; color: var(--text-muted); }
   .empty .rat { font-size: 34px; display: inline-block; animation: sniff 3s ease-in-out infinite; }
   .empty p { margin: 8px 0 0; font-size: 14px; }
 
-  /* ── chaînes ── */
+  /* ═══════════ Chaînes ═══════════ */
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-  .chip { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13.5px; transition: border-color .2s, background .2s; }
-  .chip:hover { border-color: #3a3a40; }
+  .chip { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--border); font-size: 13.5px; transition: border-color .2s, background .2s, color .2s; }
+  .chip:hover { border-color: var(--border-strong); }
   .chip .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chip .r { font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .chip.quiet { color: var(--dim); }
-  .chip.quiet .n { color: var(--dim); }
-  .chip.active { border-color: rgba(255,77,109,.5); background: rgba(255,77,109,.07); }
-  .chip.active .n { color: #fff; font-weight: 600; }
+  .chip .r { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chip.quiet, .chip.quiet .n { color: var(--text-dim); }
+  .chip.active { border-color: var(--live-soft); background: var(--live-tint); }
+  .chip.active .n { color: var(--text); font-weight: 600; }
 
-  /* ── historique ── */
+  /* ═══════════ Historique ═══════════ */
   .list { display: flex; flex-direction: column; gap: 6px; }
-  .row { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; padding: 11px 14px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--line); animation: rise .35s ease both; transition: opacity .25s, transform .25s; }
+  .row { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; padding: 11px 14px; border-radius: 11px; background: var(--surface); border: 1px solid var(--border); animation: rise .35s ease both; transition: opacity .25s, transform .25s; }
   .row.leaving { opacity: 0; transform: translateX(16px); }
-  .row .t { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+  .row .t { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 13px; }
   .row .m { min-width: 0; }
   .row .m .l1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .row .m .l1 a { font-weight: 600; color: var(--text); }
-  .row .m .l1 a:hover { color: var(--accent-2); }
-  .row .m .l2 { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg-3); border: 1px solid var(--line); color: var(--muted); }
-  .tag.live { color: var(--live); border-color: rgba(255,77,109,.35); }
-  .tag.test { color: var(--warn); border-color: rgba(245,166,35,.35); }
+  .row .m .l1 a:hover { color: var(--accent-soft); }
+  .row .m .l2 { color: var(--text-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
+  .tag.live { color: var(--live); border-color: var(--live-soft); }
+  .tag.test { color: var(--warn); border-color: var(--warn-soft); }
   .row .x { opacity: 0; transition: opacity .15s; }
   .row:hover .x { opacity: 1; }
-  .row .x button { padding: 4px 9px; line-height: 1; }
 
-  /* ── toast ── */
+  /* ═══════════ Toasts ═══════════ */
   #toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
-  .toast { display: flex; gap: 12px; align-items: center; background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--live); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); max-width: 360px; animation: slide .35s cubic-bezier(.2,.8,.2,1) both; }
+  .toast { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--live); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); max-width: 360px; cursor: pointer; animation: slide .35s cubic-bezier(.2,.8,.2,1) both; }
   .toast.out { animation: fade .3s ease both; }
   .toast .b { font-size: 14px; }
   .toast .b b { display: block; }
-  .toast .b span { color: var(--muted); font-size: 13px; }
+  .toast .b span { color: var(--text-muted); font-size: 13px; }
 
-  footer { margin-top: 20px; color: var(--dim); font-size: 12.5px; display: flex; gap: 14px; flex-wrap: wrap; }
+  footer { margin-top: 20px; color: var(--text-dim); font-size: 12.5px; display: flex; gap: 14px; flex-wrap: wrap; }
 
   @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
   @keyframes slide { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
@@ -107,7 +150,7 @@
   @keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
   @keyframes sniff { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-2px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .row .t { display: none; } .row .x { opacity: 1; } }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .row .t { display: none; } .row .x, .card .close { opacity: 1; } }
 </style>
 </head>
 <body>
@@ -117,13 +160,14 @@
     <span class="logo">🐀</span>
     <div>
       <h1>Rat des Tombolas</h1>
-      <p id="subtitle">Surveille les chats Twitch et te prévient quand une tombola démarre.</p>
+      <p>Surveille les chats du ZEVENT et te prévient quand une tombola démarre.</p>
     </div>
   </div>
   <span class="pill" id="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
   <div class="actions">
     <button id="btn-notif" class="primary" hidden>Activer les notifications</button>
     <button id="btn-test" class="ghost" title="Envoie une fausse alerte pour vérifier que les notifications arrivent">Tester</button>
+    <button id="btn-theme" class="ghost icon" title="Thème : automatique"></button>
   </div>
 </header>
 
@@ -160,21 +204,31 @@ const url = (chan) => 'https://twitch.tv/' + login(chan);
 const hhmm = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const hue = (s) => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
-function dur(msOrIsoStart, isoEnd) {
-  const ms = (isoEnd ? new Date(isoEnd) : Date.now()) - new Date(msOrIsoStart);
+function dur(isoStart, isoEnd) {
+  const ms = (isoEnd ? new Date(isoEnd) : Date.now()) - new Date(isoStart);
   const m = Math.max(0, Math.round(ms / 60000));
   if (m < 1) return 'à l’instant';
   if (m < 60) return m + ' min';
   return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
 }
-function trigLabel(a) {
-  if (a.trigger === 'ratio' || !a.lastTrustedRole) return TRIGGER.ratio;
-  return TRIGGER[a.trigger] + ' ' + ROLE[a.lastTrustedRole];
-}
+const trigLabel = (a) => (a.trigger === 'ratio' || !a.lastTrustedRole) ? TRIGGER.ratio : TRIGGER[a.trigger] + ' ' + ROLE[a.lastTrustedRole];
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
 let state = null, history = [];
 
-/* ── notifications ── */
+/* ═══════════ Thème ═══════════  auto → sombre → clair, mémorisé */
+const THEMES = [['auto', '◐', 'automatique (suit le système)'], ['dark', '☾', 'sombre'], ['light', '☀', 'clair']];
+const sysLight = matchMedia('(prefers-color-scheme: light)');
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t === 'auto' ? (sysLight.matches ? 'light' : 'dark') : t;
+  const [, icon, label] = THEMES.find(x => x[0] === t);
+  $('btn-theme').textContent = icon; $('btn-theme').title = 'Thème : ' + label;
+}
+applyTheme(store.get('theme') || 'auto');
+sysLight.addEventListener('change', () => { if ((store.get('theme') || 'auto') === 'auto') applyTheme('auto'); });
+$('btn-theme').onclick = () => { const cur = store.get('theme') || 'auto'; const next = THEMES[(THEMES.findIndex(x => x[0] === cur) + 1) % THEMES.length][0]; store.set('theme', next); applyTheme(next); };
+
+/* ═══════════ Notifications ═══════════ */
 const btnNotif = $('btn-notif');
 function refreshNotifBtn() {
   if (!('Notification' in window)) { btnNotif.hidden = true; return; }
@@ -186,7 +240,7 @@ btnNotif.onclick = () => Notification.requestPermission().then(refreshNotifBtn);
 refreshNotifBtn();
 function notify(a) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const n = new Notification(`Tombola sur ${name(a)}`, { body: a.lastTrustedText || 'Le chat parle beaucoup de tombola.', tag: a.id, icon: 'https://static-cdn.jtvnw.net/jtv_user_pictures/favicon.ico' });
+  const n = new Notification(`Tombola sur ${name(a)}`, { body: a.lastTrustedText || 'Le chat parle beaucoup de tombola.', tag: a.id });
   n.onclick = () => { window.open(url(a.chan)); n.close(); };
 }
 function toast(a) {
@@ -197,37 +251,72 @@ function toast(a) {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 8000);
 }
 
-/* ── rendu ── */
+/* ═══════════ Rendu ═══════════
+   Les cartes et les puces sont mises à jour en place : un nœud n'est créé qu'à l'apparition
+   d'une chaîne/tombola, ensuite seuls les textes changent (pas de re-animation toutes les 10 s). */
 function renderConn() {
-  const c = state?.conn; const dot = $('conn-dot'), txt = $('conn-text');
-  if (!c) return;
+  const c = state?.conn; if (!c) return;
   const map = { connected: ['ok', `Connecté · ${c.joined}/${state.chans.length} chaînes`], connecting: ['warn', 'Connexion à Twitch…'], reconnecting: ['warn', 'Reconnexion…'] };
   const [cls, label] = map[c.status] || ['', c.status];
-  dot.className = 'dot ' + cls; txt.textContent = label;
+  $('conn-dot').className = 'dot ' + cls; $('conn-text').textContent = label;
+}
+
+const dismissed = new Set(JSON.parse(store.get('dismissed') || '[]'));   // cartes masquées à la main (par id d'alerte)
+function dismissCard(chanId) {
+  const c = state.chans.find(x => x.chan === chanId); if (!c?.alertId) return;
+  dismissed.add(c.alertId); store.set('dismissed', JSON.stringify([...dismissed].slice(-50)));
+  const el = $('live').querySelector(`[data-chan="${CSS.escape(chanId)}"]`);
+  if (el) { el.classList.add('leaving'); setTimeout(renderLive, 250); } else renderLive();
+}
+function cardHTML(c) {
+  return `<button class="ghost icon close" title="Masquer cette carte" data-dismiss="${esc(c.chan)}">✕</button>
+    <div class="top">
+      <div class="avatar" style="background:hsl(${hue(c.chan)} 55% 45%)">${esc(name(c)[0])}</div>
+      <div><div class="name">${esc(name(c))}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div>
+    </div>
+    <p class="quote"></p>
+    <div class="foot"><span class="rate"></span><span class="spacer"></span><a href="${url(c.chan)}" target="_blank" rel="noopener"><button class="primary">Ouvrir sur Twitch</button></a></div>`;
+}
+function updateCard(el, c) {
+  const q = el.querySelector('.quote');
+  const html = c.lastTrustedText ? `${esc(c.lastTrustedText)}<small>${esc(ROLE[c.lastTrustedRole] || '')}</small>` : '';
+  if (q.innerHTML !== html) q.innerHTML = html;
+  el.querySelector('.rate').textContent = `${c.rate} msg/min`;
 }
 function renderLive() {
-  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE').sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
+  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(c.alertId)).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
   $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
   const box = $('live');
-  if (!live.length) { box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`; return; }
-  box.innerHTML = `<div class="cards">${live.map(c => `
-    <article class="card" data-chan="${esc(c.chan)}">
-      <div class="top">
-        <div class="avatar" style="background:hsl(${hue(c.chan)} 55% 45%)">${esc(name(c)[0])}</div>
-        <div><div class="name">${esc(name(c))}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div>
-      </div>
-      ${c.lastTrustedText ? `<p class="quote">${esc(c.lastTrustedText)}<small>${esc(ROLE[c.lastTrustedRole] || '')}</small></p>` : ''}
-      <div class="foot"><span>${c.rate} msg/min</span><span class="spacer"></span><a href="${url(c.chan)}" target="_blank" rel="noopener"><button class="primary">Ouvrir sur Twitch</button></a></div>
-    </article>`).join('')}</div>`;
+  if (!live.length) {
+    if (!box.querySelector('.empty')) box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`;
+    return;
+  }
+  let grid = box.querySelector('.cards');
+  if (!grid) { box.innerHTML = '<div class="cards"></div>'; grid = box.firstChild; }
+  const keep = new Set();
+  for (const c of live) {
+    keep.add(c.chan);
+    let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
+    if (!el || el.dataset.alert !== c.alertId) {           // nouvelle tombola (ou nouvelle sur la même chaîne)
+      el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = c.alertId; el.innerHTML = cardHTML(c);
+    }
+    updateCard(el, c); grid.appendChild(el);                 // appendChild déplace sans recréer : ordre conservé, pas d'animation
+  }
+  for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
 }
 function renderChans() {
-  const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate);
-  const active = list.filter(c => !c.quiet).length;
-  $('chan-count').textContent = `${list.length} chaînes · ${active} avec du chat`;
-  $('chans').innerHTML = list.map(c => `
-    <div class="chip ${c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : ''}" title="${c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute'}">
-      <span class="dot ${c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'}"></span><span class="n">${esc(name(c))}</span><span class="r">${c.quiet ? '' : c.rate + '/min'}</span>
-    </div>`).join('');
+  const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate || name(a).localeCompare(name(b)));
+  $('chan-count').textContent = `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
+  const grid = $('chans');
+  for (const c of list) {
+    let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
+    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><span class="n">${esc(name(c))}</span><span class="r"></span>`; }
+    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : '');
+    el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
+    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok');
+    el.lastChild.textContent = c.quiet ? '' : c.rate + '/min';
+    grid.appendChild(el);
+  }
 }
 function renderHistory() {
   const items = [...history].reverse();
@@ -242,13 +331,17 @@ function renderHistory() {
           <span class="tag">${esc(trigLabel(a))}</span></div>
         <div class="l2">${esc(a.lastTrustedText || `${Math.round(a.ratio * 100)} % des messages parlent de tombola`)}</div>
       </div>
-      <span class="x"><button class="ghost" title="Retirer" data-del="${esc(a.id)}">✕</button></span>
+      <span class="x"><button class="ghost icon" title="Retirer" data-del="${esc(a.id)}">✕</button></span>
     </div>`).join('');
 }
 function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
-setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
+setInterval(() => {
+  document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since));
+  if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1');
+}, 5000);
 
-/* ── actions ── */
+/* ═══════════ Actions ═══════════ */
+$('live').addEventListener('click', (e) => { const chan = e.target.dataset.dismiss; if (chan) dismissCard(chan); });
 $('history').addEventListener('click', async (e) => {
   const id = e.target.dataset.del; if (!id) return;
   e.target.closest('.row').classList.add('leaving');
@@ -257,7 +350,7 @@ $('history').addEventListener('click', async (e) => {
 $('btn-clear').onclick = async () => { if (confirm('Effacer tout l’historique affiché ?')) await fetch('/history', { method: 'DELETE' }); };
 $('btn-test').onclick = () => fetch('/test-alert?chan=domingo');
 
-/* ── flux ── */
+/* ═══════════ Flux ═══════════ */
 const es = new EventSource('/events');
 es.addEventListener('init', (e) => { const d = JSON.parse(e.data); state = d.state; history = d.history; renderAll(); $('updated').textContent = 'Mis à jour à l’instant'; });
 es.addEventListener('state', (e) => { state = JSON.parse(e.data); renderConn(); renderLive(); renderChans(); $('updated').textContent = 'Mis à jour à l’instant'; });
