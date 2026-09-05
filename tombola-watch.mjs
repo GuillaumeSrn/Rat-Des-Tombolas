@@ -175,6 +175,12 @@ const server = createServer((req, res) => {
     sseClients.add(res); req.on('close', () => sseClients.delete(res));
     return;
   }
+  if (req.url.startsWith('/test-alert')) { // mock : GET /test-alert?chan=domingo -> fausse alerte SSE, non loggée
+    const chan = '#' + (new URL(req.url, 'http://x').searchParams.get('chan') || 'domingo');
+    const alert = { ts: ts(), chan, ratio: 0.1234, trusted: 2, lastTrustedText: '[TEST] Tombola mock, 1€ = 1 ticket', test: true };
+    broadcast(alert); log(`TEST alert ${chan} -> ${sseClients.size} client(s) SSE`);
+    res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(alert));
+  }
   if (req.url === '/alerts') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(alerts)); }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(PAGE);
 });
