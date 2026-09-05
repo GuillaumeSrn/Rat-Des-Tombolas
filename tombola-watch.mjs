@@ -9,10 +9,10 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 // ───────────────────────── Chaînes et seuils ─────────────────────────
-// Liste chargée au démarrage depuis l'API publique du ZEVENT (participants sur place). Secours : liste figée du 5 sept. 2026.
+// Liste chargée au démarrage depuis l'API publique du ZEVENT : les TOP_N plus grosses cagnottes. Secours : liste figée du 5 sept. 2026.
 const ZEVENT_API = 'https://zevent.fr/api/';
-const ZEVENT_LOCATIONS = ['LAN'];        // 'LAN' = streamers sur le plateau ; ajouter 'Online' pour les 250+ participants à distance
-const FALLBACK_CHANS = ["alderiate","alphacast","amixem","anaee","antoinedaniel","anyme023","areliann","avamind","aypierre","bagherajones","bmsjoel","byilhann","chap_gg","chowh1","clemovitch","crocodyletv","damdamlive","dfg","doigby","domingo","emilien","enjoyphoenix","etoiles","fefegg","flamby","florence","gius","gom4rt","hctuan","helydia","hortyunderscore","hyp_tv","jirayalecochon","jltomy","joueur_du_grenier","joyca","juliettearz","kennystream","laink","lapi","lege","lexitvz","linca","littlebigwhale","low4n","lutti","lydia__am","lynkus_","mastu","mcflyetcarlito","mistermv","moman","mynthos","narkuss_lol","natoo","nico_la","onutrem","ponce","pressea","rivenzi","sakor_","samueletienne","sebjdg","shisheyu","skyrroztv","splinter","sundae","sylvainlyve","thegreatreview","theguill84","traytonlol","trinity","tweekz","ultia","wakzlol","wingo","xari","xo_trixy","yoona","zerator","zevent","zeventplays"];
+const TOP_N = 30;                        // nombre de chaînes gardées, classées par cagnotte
+const FALLBACK_CHANS = ["mastu","mistermv","domingo","anyme023","zevent","zerator","antoinedaniel","amixem","florence","joueur_du_grenier","joyca","mcflyetcarlito","ponce","sylvainlyve","jltomy","nia_c","clemovitch","nico_la","mynthos","alphacast","enjoyphoenix","laink","theguill84","etoiles","areliann","sebjdg","shisheyu","byilhann","samueletienne","fantabobshow"];
 let CHANS = [];                          // logins Twitch, sans '#'
 const DISPLAY = new Map();               // login -> nom affiché par le ZEVENT
 const MATCH_RX = /\btombola\b/i;
@@ -57,9 +57,9 @@ async function loadChans() {
     const r = await fetch(ZEVENT_API, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh) ratdestombola/1.0' }, signal: ctrl });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const live = (await r.json()).live;
-    list = live.filter(s => ZEVENT_LOCATIONS.includes(s.location)).map(s => s.twitch.toLowerCase()).sort();
+    list = live.slice().sort((a, b) => b.donationAmount.number - a.donationAmount.number).slice(0, TOP_N).map(s => s.twitch.toLowerCase());
     for (const s of live) DISPLAY.set(s.twitch.toLowerCase(), s.display);
-    log(`liste ZEVENT chargée : ${list.length} chaînes (${ZEVENT_LOCATIONS.join('+')}) sur ${live.length} participants`);
+    log(`liste ZEVENT chargée : top ${list.length} cagnottes sur ${live.length} participants`);
   } catch (e) {
     list = FALLBACK_CHANS; log(`API ZEVENT indisponible (${e.message}), liste de secours : ${list.length} chaînes`);
   }
