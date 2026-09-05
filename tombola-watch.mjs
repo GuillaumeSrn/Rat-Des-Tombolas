@@ -18,22 +18,25 @@ let CHANS = [];                          // logins Twitch, sans '#'
 const DISPLAY = new Map();               // login -> nom affiché par le ZEVENT
 const MATCH_RX = /\btombola\b/i;
 const LOG_RX = /tombola|tirage|ticket|gagnant|\blots?\b|giveaway/i;   // plus large que la détection : sert à rejouer d'autres mots-clés hors ligne
-const CONTEXT_AFTER_MS = 10 * 60_000;  // chat complet conservé après la fin d'une tombola
 
-const EVAL_INTERVAL_MS = 10_000;      // fréquence d'évaluation
-const WINDOW_MS = 3 * 60_000;         // fenêtre ratio / trusted
-const REPEAT_WINDOW_MS = 5 * 60_000;  // fenêtre détection texte répété
-const RATIO_ACTIVE = 0.03;            // ratio min pour passer ACTIVE (avec MIN_MATCHES)
-const MIN_MATCHES = 12;
-const TRUSTED_ACTIVE = 2;             // messages « tombola » de sources fiables (streamer, modérateur, bot connu)
-const MIN_AUTHORS = 8;                // critère chat : auteurs distincts minimum parmi les messages « tombola »
-const REPEAT_MIN = 2;                 // même texte mod/bot vu ≥ N fois
-const RATIO_INACTIVE = 0.01;          // retour INACTIVE si ratio < X ET trusted = 0 ...
-const INACTIVE_HOLD_MS = 5 * 60_000;  // ... pendant cette durée
+// ── Détection : une tombola ne démarre que sur une ANNONCE OFFICIELLE (streamer, modérateur, bot connu), jamais sur le chat seul.
+const STRONG_RX = /1 ?(€|euros?)|tickets?|zevent\.fr\/don|en cours/i;   // pattern d'annonce : "1€ = 1 ticket", lien de don, "tombola en cours"
+const QUESTION_RX = /\?/;                                             // "à quand ta tombola ?" n'est pas une annonce
+const FUTURE_RX = /prochaine|bient[ôo]t|tout [àa] l.heure|demain/i;   // "prochaine tombola à 16h30" non plus
+const BURST_MS = 2 * 60_000;          // annonce sans pattern fort : il faut qu'un humain (mod/streamer) la répète dans ce délai
+const DEDUP_MS = 30 * 60_000;         // une même annonce ne redéclenche pas pendant ce délai (messages automatiques des bots)
+const END_NO_OFFICIAL_MS = 8 * 60_000;// fin : plus aucun message officiel parlant de tombola depuis ce délai...
+const END_RATIO_MAX = 0.02;           // ...et moins de 2 % du chat en parle
+const COOLDOWN_MS = 10 * 60_000;      // après une fin, pas de nouvelle alerte sur la chaîne pendant ce délai
+const REPLY_MEMORY_MS = 15 * 60_000;  // un message officiel qui commence par le pseudo d'un viewer récent est une réponse, pas une annonce
+const EVAL_INTERVAL_MS = 10_000;      // fréquence d'évaluation (débit, fin, logs)
+const WINDOW_MS = 3 * 60_000;         // fenêtre de mesure du chat
+const CONTEXT_AFTER_MS = 10 * 60_000; // chat complet conservé après la fin d'une tombola
 const QUIET_AFTER_MS = 5 * 60_000;    // chat considéré silencieux sans message depuis X
 const HTTP_PORT = Number(process.env.PORT) || 8787;
 const HISTORY_MAX = 200;              // événements gardés en mémoire (les .jsonl gardent tout)
 const KEEP_MODBOT_MSGS = 5;
+const REPLY_USERS_MAX = 2000;         // pseudos récents mémorisés par chaîne
 
 const JOIN_BATCH = 15, JOIN_BATCH_GAP_MS = 10_000;
 const CLIENT_PING_MS = 60_000, PONG_TIMEOUT_MS = 10_000, BACKOFF_MIN = 1_000, BACKOFF_MAX = 30_000;
@@ -51,9 +54,10 @@ const log = (s) => console.log(`${ts()} ${s}`);
 const jsonl = (file, obj) => appendFileSync(file, JSON.stringify(obj) + '\n');
 
 // ───────────────────────── État ─────────────────────────
-// msgs: [{t, match, trusted, norm|null}] ; modbot: derniers msgs mod/bot
+// msgs: fenêtre de mesure du chat ; modbot: derniers messages officiels ; users: pseudos récents (détection des réponses) ; pending/seen: annonces candidates / déjà exploitées
 const chans = new Map();       // '#login' -> état, rempli par loadChans()
-const newChan = () => ({ msgs: [], modbot: [], state: 'INACTIVE', lowSince: null, activeSince: null, alertId: null, lastTrustedText: null, lastTrustedRole: null, lastTrustedAt: null, lastMsgAt: null, endedAt: null, cooldownUntil: 0, rate: 0, maxRatio: 0 });
+const newChan = () => ({ msgs: [], modbot: [], users: new Map(), pending: [], seen: new Map(), state: 'INACTIVE', activeSince: null, alertId: null, lastAlertId: null,
+  lastTrustedText: null, lastTrustedRole: null, lastTrustedAt: null, lastOfficialAt: 0, lastMsgAt: null, endedAt: null, cooldownUntil: 0, rate: 0, maxRatio: 0 });
 
 async function loadChans() {
   let list = null;
@@ -83,62 +87,77 @@ function role(badges, login) {
   if (badges.includes('vip/')) return 'vip';
   return 'viewer';
 }
-const TRUSTED_ROLES = new Set(['broadcaster', 'moderator', 'bot']);   // les VIP sont des viewers avec un badge, pas une source officielle
-const MODBOT_ROLES = new Set(['broadcaster', 'moderator', 'bot']);
+const OFFICIAL_ROLES = new Set(['broadcaster', 'moderator', 'bot']);   // les VIP sont des viewers avec un badge
+const HUMAN_ROLES = new Set(['broadcaster', 'moderator']);
 
-function onChat(chan, login, badges, text) {
+function onChat(chan, login, badges, text, replyTo) {
   const c = chans.get(chan); if (!c) return;
-  const r = role(badges, login), match = MATCH_RX.test(text), trusted = match && TRUSTED_ROLES.has(r), modbot = MODBOT_ROLES.has(r);
-  c.msgs.push({ t: Date.now(), match, trusted, u: match ? login : null, norm: match && modbot ? normalize(text) : null });
-  c.lastMsgAt = Date.now();
-  if (trusted) { c.lastTrustedText = text; c.lastTrustedRole = r; c.lastTrustedAt = Date.now(); }
-  if (modbot) { c.modbot.push({ ts: ts(), user: login, role: r, text }); if (c.modbot.length > KEEP_MODBOT_MSGS) c.modbot.shift(); }
+  const now = Date.now(), r = role(badges, login), match = MATCH_RX.test(text), official = OFFICIAL_ROLES.has(r);
+  c.msgs.push({ t: now, match, u: match ? login : null });
+  c.lastMsgAt = now;
+  if (!official) { c.users.set(login, now); if (c.users.size > REPLY_USERS_MAX) c.users.delete(c.users.keys().next().value); }
+  if (official) { c.modbot.push({ ts: ts(), user: login, role: r, text }); if (c.modbot.length > KEEP_MODBOT_MSGS) c.modbot.shift(); }
   // ── logs bruts pour le réglage hors ligne ──
   const rec = { ts: ts(), chan, user: login, role: r, text };
   if (LOG_RX.test(text)) jsonl(MATCHES, { ...rec, match });
-  if (modbot) jsonl(OFFICIAL, rec);
-  if (c.state === 'ACTIVE' || (c.endedAt && Date.now() - c.endedAt < CONTEXT_AFTER_MS)) jsonl(CONTEXT, { ...rec, match, alertId: c.alertId || c.lastAlertId });
+  if (official) jsonl(OFFICIAL, { ...rec, replyTo: replyTo || undefined });
+  if (c.state === 'ACTIVE' || (c.endedAt && now - c.endedAt < CONTEXT_AFTER_MS)) jsonl(CONTEXT, { ...rec, match, alertId: c.alertId || c.lastAlertId });
+  if (!official || !match) return;
+
+  // ── message officiel parlant de tombola ──
+  c.lastOfficialAt = now;                                              // maintient la tombola « en cours », même si c'est une réponse à un viewer
+  const firstWord = text.replace(/^@/, '').split(/[\s,:]/)[0].toLowerCase();
+  const isReply = !!replyTo || text.startsWith('@') || (c.users.has(firstWord) && now - c.users.get(firstWord) < REPLY_MEMORY_MS);
+  if (isReply || QUESTION_RX.test(text) || FUTURE_RX.test(text)) return;
+  c.lastTrustedText = text; c.lastTrustedRole = r; c.lastTrustedAt = now;
+  if (c.state === 'ACTIVE' || now < c.cooldownUntil) return;
+  const n = normalize(text).slice(0, 80);
+  if (c.seen.has(n) && now - c.seen.get(n) < DEDUP_MS) return;         // même annonce déjà exploitée (timer de bot)
+  if (STRONG_RX.test(text)) return startTombola(chan, c, 'announce', n);
+  if (!HUMAN_ROLES.has(r)) return;                                     // un bot sans pattern fort n'annonce rien
+  c.pending = c.pending.filter(p => now - p.t <= BURST_MS);
+  if (c.pending.some(p => p.n === n)) return startTombola(chan, c, 'repeat', n);
+  c.pending.push({ t: now, n });
+}
+
+function startTombola(chan, c, trigger, n) {
+  const now = Date.now();
+  c.state = 'ACTIVE'; c.activeSince = now; c.pending = []; c.seen.set(n, now);
+  for (const [k, t] of c.seen) if (now - t > DEDUP_MS) c.seen.delete(k);
+  const { total, matches, ratio } = measure(c, now);
+  const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: +ratio.toFixed(4), trigger, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole, endedAt: null };
+  c.alertId = alert.id; pushHistory(alert);
+  jsonl(ALERTS, { ...alert, transition: 'INACTIVE->ACTIVE', total, matches, lastModBotMsgs: [...c.modbot] });
+  log(`ALERTE ${chan} tombola (${trigger}) ${c.lastTrustedRole} : ${c.lastTrustedText.slice(0, 100)}`);
+  broadcast('alert', alert); broadcast('state', snapshot());
+}
+
+function endTombola(chan, c, reason) {
+  const now = Date.now();
+  c.state = 'INACTIVE'; c.activeSince = null; c.lastAlertId = c.alertId; c.alertId = null; c.endedAt = now; c.cooldownUntil = now + COOLDOWN_MS;
+  const ended = history.find(a => a.id === c.lastAlertId);
+  if (ended && !ended.endedAt) { ended.endedAt = ts(); broadcast('alert-update', ended); }
+  const { total, matches, ratio } = measure(c, now);
+  jsonl(ALERTS, { ts: ts(), chan, transition: 'ACTIVE->INACTIVE', reason, ratio: +ratio.toFixed(4), total, matches, lastModBotMsgs: [...c.modbot] });
+  log(`${chan} : tombola terminée (${reason})`);
+}
+
+function measure(c, now) {
+  const wStart = now - WINDOW_MS; let total = 0, matches = 0; const authors = new Set();
+  for (const m of c.msgs) { if (m.t < wStart) continue; total++; if (m.match) { matches++; authors.add(m.u); } }
+  return { total, matches, authors: authors.size, ratio: total ? matches / total : 0 };
 }
 
 function evaluate() {
-  const now = Date.now(), wStart = now - WINDOW_MS, rStart = now - REPEAT_WINDOW_MS;
+  const now = Date.now(), wStart = now - WINDOW_MS;
   for (const [chan, c] of chans) {
-    c.msgs = c.msgs.filter(m => m.t >= rStart);
-    let total = 0, matches = 0, trusted = 0; const seen = new Map(), authors = new Set(); let repeat = false;
-    for (const m of c.msgs) {
-      if (m.norm) { const n = (seen.get(m.norm) || 0) + 1; seen.set(m.norm, n); if (n >= REPEAT_MIN) repeat = true; }
-      if (m.t < wStart) continue;
-      total++; if (m.match) { matches++; authors.add(m.u); } if (m.trusted) trusted++;
-    }
-    const ratio = total ? matches / total : 0;
+    c.msgs = c.msgs.filter(m => m.t >= wStart);
+    const { total, matches, authors, ratio } = measure(c, now);
     c.rate = Math.round(total / (WINDOW_MS / 60_000));
     if (ratio > c.maxRatio) c.maxRatio = ratio;
-    const byRatio = ratio >= RATIO_ACTIVE && matches >= MIN_MATCHES && authors.size >= MIN_AUTHORS, byTrusted = trusted >= TRUSTED_ACTIVE;
-    const activeCond = byRatio || byTrusted || repeat;
-    const lowCond = ratio < RATIO_INACTIVE && trusted === 0;
-
-    if (c.state === 'INACTIVE' && activeCond && now >= c.cooldownUntil) {
-      c.state = 'ACTIVE'; c.lowSince = null; c.activeSince = now;
-      const trigger = repeat ? 'repeat' : byTrusted ? 'trusted' : 'ratio';
-      const fresh = c.lastTrustedAt && now - c.lastTrustedAt <= REPEAT_WINDOW_MS;
-      const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: +ratio.toFixed(4), trusted, authors: authors.size, trigger, lastTrustedText: fresh ? c.lastTrustedText : null, lastTrustedRole: fresh ? c.lastTrustedRole : null, endedAt: null };
-      c.alertId = alert.id; pushHistory(alert);
-      jsonl(ALERTS, { ...alert, transition: 'INACTIVE->ACTIVE', total, matches, repeat, lastModBotMsgs: [...c.modbot] });
-      log(`ALERTE ${chan} tombola (${trigger} : ratio=${(ratio * 100).toFixed(1)}% matches=${matches}/${total} auteurs=${authors.size} trusted=${trusted} repeat=${repeat})`);
-      broadcast('alert', alert);
-    } else if (c.state === 'ACTIVE') {
-      if (!lowCond) c.lowSince = null;
-      else if (c.lowSince == null) c.lowSince = now;
-      else if (now - c.lowSince >= INACTIVE_HOLD_MS) {
-        c.state = 'INACTIVE'; c.lowSince = null;
-        const ended = history.find(a => a.id === c.alertId);
-        if (ended) { ended.endedAt = ts(); broadcast('alert-update', ended); }
-        c.activeSince = null; c.lastAlertId = c.alertId; c.alertId = null; c.endedAt = now;
-        jsonl(ALERTS, { ts: ts(), chan, transition: 'ACTIVE->INACTIVE', ratio: +ratio.toFixed(4), trusted, total, matches, lastModBotMsgs: [...c.modbot] });
-        log(`${chan} : tombola terminée`);
-      }
-    }
-    jsonl(SCORES, { ts: ts(), chan, total, matches, authors: authors.size, ratio: +ratio.toFixed(4), trusted, repeat, state: c.state });
+    const sinceOfficial = c.lastOfficialAt ? now - c.lastOfficialAt : null;
+    if (c.state === 'ACTIVE' && sinceOfficial > END_NO_OFFICIAL_MS && ratio < END_RATIO_MAX) endTombola(chan, c, 'silence');
+    jsonl(SCORES, { ts: ts(), chan, total, matches, authors, ratio: +ratio.toFixed(4), sinceOfficialS: sinceOfficial == null ? null : Math.round(sinceOfficial / 1000), state: c.state });
   }
   broadcast('state', snapshot());
 }
@@ -152,7 +171,7 @@ function snapshot() {
     chans: [...chans].map(([chan, c]) => ({
       chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), state: c.state, alertId: c.alertId, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null, rate: c.rate,
       quiet: !c.lastMsgAt || now - c.lastMsgAt > QUIET_AFTER_MS,
-      lastTrustedText: c.lastTrustedAt && now - c.lastTrustedAt <= REPEAT_WINDOW_MS ? c.lastTrustedText : null, lastTrustedRole: c.lastTrustedAt && now - c.lastTrustedAt <= REPEAT_WINDOW_MS ? c.lastTrustedRole : null,
+      lastTrustedText: c.state === 'ACTIVE' ? c.lastTrustedText : null, lastTrustedRole: c.state === 'ACTIVE' ? c.lastTrustedRole : null,
     })),
   };
 }
@@ -198,7 +217,7 @@ function connect() {
         case 'NOTICE': log('NOTICE ' + line.slice(0, 200)); break;
         case 'RECONNECT': log('RECONNECT demandé par Twitch'); ws.close(4001, 'server reconnect'); break;
         case 'PRIVMSG': case 'USERNOTICE':
-          onChat(p.params[0], p.tags.login || p.prefix?.split('!')[0] || '', p.tags.badges || '', p.trailing); break;
+          onChat(p.params[0], p.tags.login || p.prefix?.split('!')[0] || '', p.tags.badges || '', p.trailing, p.tags['reply-parent-user-login']); break;
       }
     }
   });
@@ -228,11 +247,13 @@ const server = createServer((req, res) => {
   if (url.pathname === '/state') return json(res, 200, snapshot());
   if (url.pathname === '/history' && req.method === 'GET') return json(res, 200, history);
   if (url.pathname === '/history' && req.method === 'DELETE') {          // efface l'historique en mémoire (les .jsonl sont conservés)
-    history.length = 0; broadcast('history-cleared', {}); return json(res, 200, { ok: true });
+    const kept = history.filter(a => !a.endedAt); history.length = 0; history.push(...kept);   // les tombolas en cours restent
+    broadcast('history-cleared', { kept: kept.map(a => a.id) }); return json(res, 200, { ok: true, kept: kept.length });
   }
   if (url.pathname.startsWith('/history/') && req.method === 'DELETE') {
     const id = url.pathname.slice('/history/'.length), i = history.findIndex(a => a.id === id);
     if (i < 0) return json(res, 404, { error: 'inconnu' });
+    if (!history[i].endedAt) return json(res, 409, { error: 'tombola en cours : marque-la terminée d’abord' });
     history.splice(i, 1); broadcast('history-removed', { id }); return json(res, 200, { ok: true });
   }
   if (url.pathname.startsWith('/history/') && url.pathname.endsWith('/feedback') && req.method === 'POST') {   // vérité terrain saisie dans la page
@@ -243,9 +264,9 @@ const server = createServer((req, res) => {
       const c = chans.get(a.chan);
       if (verdict === 'ended') {
         a.endedAt = a.endedAt || ts(); a.userEnded = true;
-        if (c && c.alertId === a.id) { c.state = 'INACTIVE'; c.lowSince = null; c.activeSince = null; c.lastAlertId = c.alertId; c.alertId = null; c.endedAt = Date.now(); c.cooldownUntil = Date.now() + INACTIVE_HOLD_MS; }
+        if (c && c.alertId === a.id) endTombola(a.chan, c, 'utilisateur');
       } else a.verdict = verdict;
-      jsonl(FEEDBACK, { ts: ts(), id, chan: a.chan, verdict, alertTs: a.ts, trigger: a.trigger, detectedEnd: verdict === 'ended' ? null : a.endedAt, ratio: a.ratio, trusted: a.trusted, authors: a.authors });
+      jsonl(FEEDBACK, { ts: ts(), id, chan: a.chan, verdict, alertTs: a.ts, trigger: a.trigger, detectedEnd: verdict === 'ended' ? null : a.endedAt, text: a.lastTrustedText });
       log(`retour utilisateur ${a.chan} : ${verdict}`); broadcast('alert-update', a); if (verdict === 'ended') broadcast('state', snapshot());
       json(res, 200, a);
     });
@@ -253,9 +274,9 @@ const server = createServer((req, res) => {
   }
   if (url.pathname === '/test-alert') {                                    // fausse alerte pour tester la chaîne de notification, non loggée
     const chan = '#' + (url.searchParams.get('chan') || 'domingo');
-    const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: 0.1234, trusted: 2, trigger: 'trusted', lastTrustedText: 'Test : tombola fictive, 1€ = 1 ticket', lastTrustedRole: 'moderator', endedAt: null, test: true };
-    const c = chans.get(chan);                                              // la chaîne passe aussi "en cours" pour tester la carte (retour au calme automatique)
-    if (c && c.state === 'INACTIVE') { c.state = 'ACTIVE'; c.activeSince = Date.now(); c.alertId = alert.id; c.lastTrustedText = alert.lastTrustedText; c.lastTrustedRole = 'moderator'; c.lastTrustedAt = Date.now(); }
+    const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: 0.1234, trigger: 'announce', lastTrustedText: 'Test : tombola fictive, 1€ = 1 ticket', lastTrustedRole: 'moderator', endedAt: null, test: true };
+    const c = chans.get(chan);                                              // la chaîne passe aussi "en cours" pour tester la carte (fin automatique au silence)
+    if (c && c.state === 'INACTIVE') { c.state = 'ACTIVE'; c.activeSince = Date.now(); c.alertId = alert.id; c.lastTrustedText = alert.lastTrustedText; c.lastTrustedRole = 'moderator'; c.lastTrustedAt = Date.now(); c.lastOfficialAt = Date.now(); }
     pushHistory(alert); broadcast('alert', alert); broadcast('state', snapshot()); log(`alerte de test ${chan} → ${sseClients.size} client(s)`);
     return json(res, 200, alert);
   }

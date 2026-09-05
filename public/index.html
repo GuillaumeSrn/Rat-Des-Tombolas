@@ -203,7 +203,7 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 const ROLE = { broadcaster: 'le streamer', moderator: 'un modérateur', vip: 'un VIP', bot: 'le bot du chat' };
-const TRIGGER = { trusted: 'annoncée par', repeat: 'annonce répétée par', ratio: 'le chat s’emballe' };
+const TRIGGER = { announce: 'annoncée par', repeat: 'annonce répétée par' };
 const login = (chan) => chan.replace(/^#/, '');
 const name = (x) => x.display || login(x.chan);
 const url = (chan) => 'https://twitch.tv/' + login(chan);
@@ -217,7 +217,7 @@ function dur(isoStart, isoEnd) {
   if (m < 60) return m + ' min';
   return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
 }
-const trigLabel = (a) => (a.trigger === 'ratio' || !a.lastTrustedRole) ? TRIGGER.ratio : TRIGGER[a.trigger] + ' ' + ROLE[a.lastTrustedRole];
+const trigLabel = (a) => a.lastTrustedRole ? (TRIGGER[a.trigger] || 'annoncée par') + ' ' + ROLE[a.lastTrustedRole] : 'annonce détectée';
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
 let state = null, history = [];
@@ -246,7 +246,7 @@ btnNotif.onclick = () => Notification.requestPermission().then(refreshNotifBtn);
 refreshNotifBtn();
 function notify(a) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const n = new Notification(`Tombola sur ${name(a)}`, { body: a.lastTrustedText || 'Le chat parle beaucoup de tombola.', tag: a.id });
+  const n = new Notification(`Tombola sur ${name(a)}`, { body: a.lastTrustedText || 'Annonce détectée dans le chat.', tag: a.id });
   n.onclick = () => { window.open(url(a.chan)); n.close(); };
 }
 function toast(a) {
@@ -338,13 +338,13 @@ function renderHistory() {
         <div class="l1"><a href="${url(a.chan)}" target="_blank" rel="noopener">${esc(name(a))}</a>
           ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}${a.userEnded ? '' : ' env.'}</span>` : '<span class="tag live">en cours</span>'}
           <span class="tag">${esc(trigLabel(a))}</span></div>
-        <div class="l2">${esc(a.lastTrustedText || `${Math.round(a.ratio * 100)} % des messages parlent de tombola`)}</div>
+        <div class="l2">${esc(a.lastTrustedText || '')}</div>
       </div>
       <span class="fb">
         ${!a.endedAt && !a.test ? `<button class="ghost" title="Je vois sur le stream que c’est terminé" data-fb="ended" data-id="${esc(a.id)}">Terminée</button>` : ''}
         <button class="ghost ${a.verdict === 'true' ? 'on' : ''}" title="C’était une vraie tombola" data-fb="true" data-id="${esc(a.id)}">👍</button>
         <button class="ghost ${a.verdict === 'false' ? 'on' : ''}" title="Fausse alerte" data-fb="false" data-id="${esc(a.id)}">👎</button>
-        <span class="x"><button class="ghost icon" title="Retirer" data-del="${esc(a.id)}">✕</button></span>
+        ${a.endedAt ? `<span class="x"><button class="ghost icon" title="Retirer de la liste" data-del="${esc(a.id)}">✕</button></span>` : ''}
       </span>
     </div>`).join('');
 }
@@ -362,7 +362,7 @@ $('history').addEventListener('click', async (e) => {
   e.target.closest('.row').classList.add('leaving');
   await fetch('/history/' + id, { method: 'DELETE' });
 });
-$('btn-clear').onclick = async () => { if (confirm('Effacer tout l’historique affiché ?')) await fetch('/history', { method: 'DELETE' }); };
+$('btn-clear').onclick = async () => { if (confirm('Effacer les tombolas terminées de la liste ?')) await fetch('/history', { method: 'DELETE' }); };
 $('btn-test').onclick = () => fetch('/test-alert?chan=domingo');
 
 /* ═══════════ Flux ═══════════ */
@@ -372,7 +372,7 @@ es.addEventListener('state', (e) => { state = JSON.parse(e.data); renderConn(); 
 es.addEventListener('alert', (e) => { const a = JSON.parse(e.data); history.push(a); renderHistory(); toast(a); notify(a); });
 es.addEventListener('alert-update', (e) => { const a = JSON.parse(e.data); const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = a; renderHistory(); });
 es.addEventListener('history-removed', (e) => { const { id } = JSON.parse(e.data); history = history.filter(a => a.id !== id); renderHistory(); });
-es.addEventListener('history-cleared', () => { history = []; renderHistory(); });
+es.addEventListener('history-cleared', (e) => { const { kept = [] } = JSON.parse(e.data); history = history.filter(a => kept.includes(a.id)); renderHistory(); });
 es.onerror = () => { $('conn-dot').className = 'dot warn'; $('conn-text').textContent = 'Page déconnectée du watcher…'; };
 </script>
 </body>
