@@ -11,3 +11,5 @@ yarn-error.log*
 .vscode/*
 .DS_Store
 /watch-logs/
+watch-logs.out
+.idea/
