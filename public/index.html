@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rat des Tombolas</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐀</text></svg>">
+<style>
+  :root {
+    --bg: #0e0e10; --bg-2: #18181b; --bg-3: #1f1f23; --line: #2a2a2e;
+    --text: #efeff1; --muted: #adadb8; --dim: #6b6b75;
+    --accent: #9147ff; --accent-2: #bf94ff; --live: #ff4d6d; --ok: #3ddc97; --warn: #f5a623;
+    --radius: 14px; --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { padding: 28px clamp(16px, 4vw, 48px) 60px; max-width: 1180px; margin: 0 auto; }
+  a { color: var(--accent-2); text-decoration: none; }
+  button { font: inherit; color: var(--text); background: var(--bg-3); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
+  button:hover { background: #2a2a30; border-color: #3a3a40; }
+  button:active { transform: scale(.97); }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  button.primary:hover { background: #7d3ae0; }
+  button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  button.ghost:hover { color: var(--text); background: var(--bg-3); border-color: transparent; }
+  button.danger:hover { color: #ff8fa3; border-color: #5a2a33; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  /* ── header ── */
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 34px; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px rgba(145,71,255,.45)); }
+  .brand h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+  .brand p { margin: 0; font-size: 13px; color: var(--muted); }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 0 rgba(61,220,151,.6); animation: ping 2.4s infinite; }
+  .dot.warn { background: var(--warn); }
+  .dot.live { background: var(--live); box-shadow: 0 0 0 0 rgba(255,77,109,.6); animation: ping 1.6s infinite; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ── sections ── */
+  section { margin-bottom: 40px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .sec-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .sec-head .count { font-size: 12px; color: var(--dim); }
+  .sec-head .spacer { flex: 1; }
+
+  /* ── tombola en cours ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .card { position: relative; overflow: hidden; background: linear-gradient(160deg, var(--bg-2), var(--bg-3)); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 18px 16px; box-shadow: var(--shadow); animation: rise .45s cubic-bezier(.2,.8,.2,1) both; }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: linear-gradient(var(--live), var(--accent)); }
+  .card .top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 17px; color: #fff; background: var(--accent); flex: none; text-transform: uppercase; }
+  .card .name { font-weight: 650; font-size: 17px; }
+  .card .since { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .card .since b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card .quote { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.04); color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+  .card .quote small { display: block; margin-top: 4px; color: var(--dim); font-size: 12px; }
+  .card .foot { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .card .foot .spacer { flex: 1; }
+  .empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 34px 20px; text-align: center; color: var(--muted); }
+  .empty .rat { font-size: 34px; display: inline-block; animation: sniff 3s ease-in-out infinite; }
+  .empty p { margin: 8px 0 0; font-size: 14px; }
+
+  /* ── chaînes ── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .chip { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13.5px; transition: border-color .2s, background .2s; }
+  .chip:hover { border-color: #3a3a40; }
+  .chip .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip .r { font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chip.quiet { color: var(--dim); }
+  .chip.quiet .n { color: var(--dim); }
+  .chip.active { border-color: rgba(255,77,109,.5); background: rgba(255,77,109,.07); }
+  .chip.active .n { color: #fff; font-weight: 600; }
+
+  /* ── historique ── */
+  .list { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; padding: 11px 14px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--line); animation: rise .35s ease both; transition: opacity .25s, transform .25s; }
+  .row.leaving { opacity: 0; transform: translateX(16px); }
+  .row .t { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+  .row .m { min-width: 0; }
+  .row .m .l1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .row .m .l1 a { font-weight: 600; color: var(--text); }
+  .row .m .l1 a:hover { color: var(--accent-2); }
+  .row .m .l2 { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg-3); border: 1px solid var(--line); color: var(--muted); }
+  .tag.live { color: var(--live); border-color: rgba(255,77,109,.35); }
+  .tag.test { color: var(--warn); border-color: rgba(245,166,35,.35); }
+  .row .x { opacity: 0; transition: opacity .15s; }
+  .row:hover .x { opacity: 1; }
+  .row .x button { padding: 4px 9px; line-height: 1; }
+
+  /* ── toast ── */
+  #toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+  .toast { display: flex; gap: 12px; align-items: center; background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--live); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); max-width: 360px; animation: slide .35s cubic-bezier(.2,.8,.2,1) both; }
+  .toast.out { animation: fade .3s ease both; }
+  .toast .b { font-size: 14px; }
+  .toast .b b { display: block; }
+  .toast .b span { color: var(--muted); font-size: 13px; }
+
+  footer { margin-top: 20px; color: var(--dim); font-size: 12.5px; display: flex; gap: 14px; flex-wrap: wrap; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes slide { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { to { opacity: 0; transform: translateY(6px); } }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @keyframes sniff { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-2px); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .row .t { display: none; } .row .x { opacity: 1; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="logo">🐀</span>
+    <div>
+      <h1>Rat des Tombolas</h1>
+      <p id="subtitle">Surveille les chats Twitch et te prévient quand une tombola démarre.</p>
+    </div>
+  </div>
+  <span class="pill" id="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
+  <div class="actions">
+    <button id="btn-notif" class="primary" hidden>Activer les notifications</button>
+    <button id="btn-test" class="ghost" title="Envoie une fausse alerte pour vérifier que les notifications arrivent">Tester</button>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head"><h2>En cours</h2><span class="count" id="live-count"></span></div>
+  <div id="live"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Historique</h2><span class="count" id="hist-count"></span><span class="spacer"></span><button id="btn-clear" class="ghost danger" hidden>Tout effacer</button></div>
+  <div id="history" class="list"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Chaînes surveillées</h2><span class="count" id="chan-count"></span></div>
+  <div id="chans" class="grid"></div>
+</section>
+
+<footer>
+  <span id="updated">—</span>
+  <span>Les notifications s'affichent tant que cet onglet reste ouvert.</span>
+</footer>
+
+<div id="toasts"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const ROLE = { broadcaster: 'le streamer', moderator: 'un modérateur', vip: 'un VIP', bot: 'le bot du chat' };
+const TRIGGER = { trusted: 'annoncée par', repeat: 'annonce répétée par', ratio: 'le chat s’emballe' };
+const login = (chan) => chan.replace(/^#/, '');
+const url = (chan) => 'https://twitch.tv/' + login(chan);
+const hhmm = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hue = (s) => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+function dur(msOrIsoStart, isoEnd) {
+  const ms = (isoEnd ? new Date(isoEnd) : Date.now()) - new Date(msOrIsoStart);
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 1) return 'à l’instant';
+  if (m < 60) return m + ' min';
+  return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
+}
+function trigLabel(a) {
+  if (a.trigger === 'ratio' || !a.lastTrustedRole) return TRIGGER.ratio;
+  return TRIGGER[a.trigger] + ' ' + ROLE[a.lastTrustedRole];
+}
+
+let state = null, history = [];
+
+/* ── notifications ── */
+const btnNotif = $('btn-notif');
+function refreshNotifBtn() {
+  if (!('Notification' in window)) { btnNotif.hidden = true; return; }
+  btnNotif.hidden = Notification.permission === 'granted';
+  btnNotif.disabled = Notification.permission === 'denied';
+  if (Notification.permission === 'denied') btnNotif.textContent = 'Notifications bloquées par le navigateur';
+}
+btnNotif.onclick = () => Notification.requestPermission().then(refreshNotifBtn);
+refreshNotifBtn();
+function notify(a) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const n = new Notification(`Tombola sur ${login(a.chan)}`, { body: a.lastTrustedText || 'Le chat parle beaucoup de tombola.', tag: a.id, icon: 'https://static-cdn.jtvnw.net/jtv_user_pictures/favicon.ico' });
+  n.onclick = () => { window.open(url(a.chan)); n.close(); };
+}
+function toast(a) {
+  const el = document.createElement('div'); el.className = 'toast';
+  el.innerHTML = `<span class="dot live"></span><div class="b"><b>Tombola sur ${esc(login(a.chan))}</b><span>${esc(a.lastTrustedText || trigLabel(a))}</span></div>`;
+  el.onclick = () => window.open(url(a.chan));
+  $('toasts').appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 8000);
+}
+
+/* ── rendu ── */
+function renderConn() {
+  const c = state?.conn; const dot = $('conn-dot'), txt = $('conn-text');
+  if (!c) return;
+  const map = { connected: ['ok', `Connecté · ${c.joined}/${state.chans.length} chaînes`], connecting: ['warn', 'Connexion à Twitch…'], reconnecting: ['warn', 'Reconnexion…'] };
+  const [cls, label] = map[c.status] || ['', c.status];
+  dot.className = 'dot ' + cls; txt.textContent = label;
+}
+function renderLive() {
+  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE').sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
+  $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
+  const box = $('live');
+  if (!live.length) { box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`; return; }
+  box.innerHTML = `<div class="cards">${live.map(c => `
+    <article class="card" data-chan="${esc(c.chan)}">
+      <div class="top">
+        <div class="avatar" style="background:hsl(${hue(c.chan)} 55% 45%)">${esc(login(c.chan)[0])}</div>
+        <div><div class="name">${esc(login(c.chan))}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div>
+      </div>
+      ${c.lastTrustedText ? `<p class="quote">${esc(c.lastTrustedText)}<small>${esc(ROLE[c.lastTrustedRole] || '')}</small></p>` : ''}
+      <div class="foot"><span>${c.rate} msg/min</span><span class="spacer"></span><a href="${url(c.chan)}" target="_blank" rel="noopener"><button class="primary">Ouvrir sur Twitch</button></a></div>
+    </article>`).join('')}</div>`;
+}
+function renderChans() {
+  const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate);
+  const active = list.filter(c => !c.quiet).length;
+  $('chan-count').textContent = `${list.length} chaînes · ${active} avec du chat`;
+  $('chans').innerHTML = list.map(c => `
+    <div class="chip ${c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : ''}" title="${c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute'}">
+      <span class="dot ${c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'}"></span><span class="n">${esc(login(c.chan))}</span><span class="r">${c.quiet ? '' : c.rate + '/min'}</span>
+    </div>`).join('');
+}
+function renderHistory() {
+  const items = [...history].reverse();
+  $('hist-count').textContent = items.length ? `${items.length} événement${items.length > 1 ? 's' : ''}` : 'rien pour l’instant';
+  $('btn-clear').hidden = !items.length;
+  $('history').innerHTML = items.map(a => `
+    <div class="row" data-id="${esc(a.id)}">
+      <span class="t">${hhmm(a.ts)}</span>
+      <div class="m">
+        <div class="l1"><a href="${url(a.chan)}" target="_blank" rel="noopener">${esc(login(a.chan))}</a>
+          ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}</span>` : '<span class="tag live">en cours</span>'}
+          <span class="tag">${esc(trigLabel(a))}</span></div>
+        <div class="l2">${esc(a.lastTrustedText || `${Math.round(a.ratio * 100)} % des messages parlent de tombola`)}</div>
+      </div>
+      <span class="x"><button class="ghost" title="Retirer" data-del="${esc(a.id)}">✕</button></span>
+    </div>`).join('');
+}
+function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
+setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
+
+/* ── actions ── */
+$('history').addEventListener('click', async (e) => {
+  const id = e.target.dataset.del; if (!id) return;
+  e.target.closest('.row').classList.add('leaving');
+  await fetch('/history/' + id, { method: 'DELETE' });
+});
+$('btn-clear').onclick = async () => { if (confirm('Effacer tout l’historique affiché ?')) await fetch('/history', { method: 'DELETE' }); };
+$('btn-test').onclick = () => fetch('/test-alert?chan=domingo');
+
+/* ── flux ── */
+const es = new EventSource('/events');
+es.addEventListener('init', (e) => { const d = JSON.parse(e.data); state = d.state; history = d.history; renderAll(); $('updated').textContent = 'Mis à jour à l’instant'; });
+es.addEventListener('state', (e) => { state = JSON.parse(e.data); renderConn(); renderLive(); renderChans(); $('updated').textContent = 'Mis à jour à l’instant'; });
+es.addEventListener('alert', (e) => { const a = JSON.parse(e.data); history.push(a); renderHistory(); toast(a); notify(a); });
+es.addEventListener('alert-update', (e) => { const a = JSON.parse(e.data); const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = a; renderHistory(); });
+es.addEventListener('history-removed', (e) => { const { id } = JSON.parse(e.data); history = history.filter(a => a.id !== id); renderHistory(); });
+es.addEventListener('history-cleared', () => { history = []; renderHistory(); });
+es.onerror = () => { $('conn-dot').className = 'dot warn'; $('conn-text').textContent = 'Page déconnectée du watcher…'; };
+</script>
+</body>
+</html>
