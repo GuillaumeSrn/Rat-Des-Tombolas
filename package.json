@@ -1,14 +1,11 @@
 {
   "name": "ratdestombola",
   "version": "1.0.0",
-  "description": "",
-  "main": "dist/index.js",
+  "description": "Détecte les tombolas en cours sur des chaînes Twitch et te prévient.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22" },
   "scripts": {
-    "build": "tsc"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "typescript": "^5.5.3"
-  },
-  "private": true
+    "start": "node tombola-watch.mjs"
+  }
 }
