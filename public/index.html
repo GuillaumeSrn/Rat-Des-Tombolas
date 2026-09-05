@@ -217,7 +217,7 @@ function dur(isoStart, isoEnd) {
   if (m < 60) return m + ' min';
   return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
 }
-const trigLabel = (a) => a.lastTrustedRole ? (TRIGGER[a.trigger] || 'annoncée par') + ' ' + ROLE[a.lastTrustedRole] : 'annonce détectée';
+const trigLabel = (a) => (a.lastTrustedRole ? (TRIGGER[a.trigger] || 'annoncée par') + ' ' + ROLE[a.lastTrustedRole] : 'annonce détectée') + (a.via ? ' de ' + a.via : '');
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
 let state = null, history = [];

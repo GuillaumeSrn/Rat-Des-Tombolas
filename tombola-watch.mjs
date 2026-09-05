@@ -107,22 +107,25 @@ function onChat(chan, login, badges, text, replyTo) {
   const firstWord = text.replace(/^@/, '').split(/[\s,:]/)[0].toLowerCase();
   const isReply = !!replyTo || text.startsWith('@') || (c.users.has(firstWord) && now - c.users.get(firstWord) < REPLY_MEMORY_MS);
   if (isReply || QUESTION_RX.test(text) || FUTURE_RX.test(text)) return;
-  c.lastTrustedText = text; c.lastTrustedRole = r; c.lastTrustedAt = now;
-  if (c.state === 'ACTIVE' || now < c.cooldownUntil) return;
+  // Un lien de don désigne la vraie chaîne de la tombola (un mod peut relayer celle d'un autre streamer)
+  const donLogin = (text.match(/zevent\.fr\/don\/([a-z0-9_]+)/i) || [])[1]?.toLowerCase();
+  const target = donLogin && chans.has('#' + donLogin) ? '#' + donLogin : chan, tc = chans.get(target);
+  tc.lastTrustedText = text; tc.lastTrustedRole = r; tc.lastTrustedAt = now; if (target !== chan) tc.lastOfficialAt = now;
+  if (tc.state === 'ACTIVE' || now < tc.cooldownUntil) return;
   const n = normalize(text).slice(0, 80);
-  if (c.seen.has(n) && now - c.seen.get(n) < DEDUP_MS) return;         // même annonce déjà exploitée (timer de bot)
-  if (STRONG_RX.test(text)) startTombola(chan, c, 'announce', n);      // sans pattern d'annonce, on ne déclenche pas (« tombola » seul est trop ambigu, même venant d'un mod)
+  if (tc.seen.has(n) && now - tc.seen.get(n) < DEDUP_MS) return;       // même annonce déjà exploitée (timer de bot)
+  if (STRONG_RX.test(text)) startTombola(target, tc, 'announce', n, target !== chan ? chan : null);   // sans pattern d'annonce, on ne déclenche pas
 }
 
-function startTombola(chan, c, trigger, n) {
+function startTombola(chan, c, trigger, n, via = null) {
   const now = Date.now();
   c.state = 'ACTIVE'; c.activeSince = now; c.seen.set(n, now);
   for (const [k, t] of c.seen) if (now - t > DEDUP_MS) c.seen.delete(k);
   const { total, matches, ratio } = measure(c, now);
-  const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: +ratio.toFixed(4), trigger, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole, endedAt: null };
+  const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: +ratio.toFixed(4), trigger, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole, via: via ? DISPLAY.get(via.slice(1)) || via.slice(1) : null, endedAt: null };
   c.alertId = alert.id; pushHistory(alert);
   jsonl(ALERTS, { ...alert, transition: 'INACTIVE->ACTIVE', total, matches, lastModBotMsgs: [...c.modbot] });
-  log(`ALERTE ${chan} tombola (${trigger}) ${c.lastTrustedRole} : ${c.lastTrustedText.slice(0, 100)}`);
+  log(`ALERTE ${chan} tombola (${trigger}${via ? ', relayée par ' + via : ''}) ${c.lastTrustedRole} : ${c.lastTrustedText.slice(0, 100)}`);
   broadcast('alert', alert); broadcast('state', snapshot());
 }
 
