@@ -155,6 +155,7 @@ const $ = (id) => document.getElementById(id);
 const ROLE = { broadcaster: 'le streamer', moderator: 'un modérateur', vip: 'un VIP', bot: 'le bot du chat' };
 const TRIGGER = { trusted: 'annoncée par', repeat: 'annonce répétée par', ratio: 'le chat s’emballe' };
 const login = (chan) => chan.replace(/^#/, '');
+const name = (x) => x.display || login(x.chan);
 const url = (chan) => 'https://twitch.tv/' + login(chan);
 const hhmm = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -185,12 +186,12 @@ btnNotif.onclick = () => Notification.requestPermission().then(refreshNotifBtn);
 refreshNotifBtn();
 function notify(a) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const n = new Notification(`Tombola sur ${login(a.chan)}`, { body: a.lastTrustedText || 'Le chat parle beaucoup de tombola.', tag: a.id, icon: 'https://static-cdn.jtvnw.net/jtv_user_pictures/favicon.ico' });
+  const n = new Notification(`Tombola sur ${name(a)}`, { body: a.lastTrustedText || 'Le chat parle beaucoup de tombola.', tag: a.id, icon: 'https://static-cdn.jtvnw.net/jtv_user_pictures/favicon.ico' });
   n.onclick = () => { window.open(url(a.chan)); n.close(); };
 }
 function toast(a) {
   const el = document.createElement('div'); el.className = 'toast';
-  el.innerHTML = `<span class="dot live"></span><div class="b"><b>Tombola sur ${esc(login(a.chan))}</b><span>${esc(a.lastTrustedText || trigLabel(a))}</span></div>`;
+  el.innerHTML = `<span class="dot live"></span><div class="b"><b>Tombola sur ${esc(name(a))}</b><span>${esc(a.lastTrustedText || trigLabel(a))}</span></div>`;
   el.onclick = () => window.open(url(a.chan));
   $('toasts').appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 8000);
@@ -212,8 +213,8 @@ function renderLive() {
   box.innerHTML = `<div class="cards">${live.map(c => `
     <article class="card" data-chan="${esc(c.chan)}">
       <div class="top">
-        <div class="avatar" style="background:hsl(${hue(c.chan)} 55% 45%)">${esc(login(c.chan)[0])}</div>
-        <div><div class="name">${esc(login(c.chan))}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div>
+        <div class="avatar" style="background:hsl(${hue(c.chan)} 55% 45%)">${esc(name(c)[0])}</div>
+        <div><div class="name">${esc(name(c))}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div>
       </div>
       ${c.lastTrustedText ? `<p class="quote">${esc(c.lastTrustedText)}<small>${esc(ROLE[c.lastTrustedRole] || '')}</small></p>` : ''}
       <div class="foot"><span>${c.rate} msg/min</span><span class="spacer"></span><a href="${url(c.chan)}" target="_blank" rel="noopener"><button class="primary">Ouvrir sur Twitch</button></a></div>
@@ -225,7 +226,7 @@ function renderChans() {
   $('chan-count').textContent = `${list.length} chaînes · ${active} avec du chat`;
   $('chans').innerHTML = list.map(c => `
     <div class="chip ${c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : ''}" title="${c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute'}">
-      <span class="dot ${c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'}"></span><span class="n">${esc(login(c.chan))}</span><span class="r">${c.quiet ? '' : c.rate + '/min'}</span>
+      <span class="dot ${c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'}"></span><span class="n">${esc(name(c))}</span><span class="r">${c.quiet ? '' : c.rate + '/min'}</span>
     </div>`).join('');
 }
 function renderHistory() {
@@ -236,7 +237,7 @@ function renderHistory() {
     <div class="row" data-id="${esc(a.id)}">
       <span class="t">${hhmm(a.ts)}</span>
       <div class="m">
-        <div class="l1"><a href="${url(a.chan)}" target="_blank" rel="noopener">${esc(login(a.chan))}</a>
+        <div class="l1"><a href="${url(a.chan)}" target="_blank" rel="noopener">${esc(name(a))}</a>
           ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}</span>` : '<span class="tag live">en cours</span>'}
           <span class="tag">${esc(trigLabel(a))}</span></div>
         <div class="l2">${esc(a.lastTrustedText || `${Math.round(a.ratio * 100)} % des messages parlent de tombola`)}</div>

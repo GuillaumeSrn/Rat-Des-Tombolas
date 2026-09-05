@@ -9,7 +9,12 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 // ───────────────────────── Chaînes et seuils ─────────────────────────
-const CHANS = ['domingo','zerator','anyme','etoiles','mistermv','squeezie','gotaga','kamet0','ponce','antoinedaniel','locklear','michou','inoxtag','jltomy','samueletienne','rivenzi','ultia','hortyunderscore','alphacast','aminematue','doigby','baghera','lebouseuh','xqc','kaicenat','ibai','auronplay','rubius','shroud','pokimane','jirayalecochon'];
+// Liste chargée au démarrage depuis l'API publique du ZEVENT (participants sur place). Secours : liste figée du 5 sept. 2026.
+const ZEVENT_API = 'https://zevent.fr/api/';
+const ZEVENT_LOCATIONS = ['LAN'];        // 'LAN' = streamers sur le plateau ; ajouter 'Online' pour les 250+ participants à distance
+const FALLBACK_CHANS = ["alderiate","alphacast","amixem","anaee","antoinedaniel","anyme023","areliann","avamind","aypierre","bagherajones","bmsjoel","byilhann","chap_gg","chowh1","clemovitch","crocodyletv","damdamlive","dfg","doigby","domingo","emilien","enjoyphoenix","etoiles","fefegg","flamby","florence","gius","gom4rt","hctuan","helydia","hortyunderscore","hyp_tv","jirayalecochon","jltomy","joueur_du_grenier","joyca","juliettearz","kennystream","laink","lapi","lege","lexitvz","linca","littlebigwhale","low4n","lutti","lydia__am","lynkus_","mastu","mcflyetcarlito","mistermv","moman","mynthos","narkuss_lol","natoo","nico_la","onutrem","ponce","pressea","rivenzi","sakor_","samueletienne","sebjdg","shisheyu","skyrroztv","splinter","sundae","sylvainlyve","thegreatreview","theguill84","traytonlol","trinity","tweekz","ultia","wakzlol","wingo","xari","xo_trixy","yoona","zerator","zevent","zeventplays"];
+let CHANS = [];                          // logins Twitch, sans '#'
+const DISPLAY = new Map();               // login -> nom affiché par le ZEVENT
 const MATCH_RX = /\btombola\b/i;
 
 const EVAL_INTERVAL_MS = 10_000;      // fréquence d'évaluation
@@ -42,10 +47,25 @@ const jsonl = (file, obj) => appendFileSync(file, JSON.stringify(obj) + '\n');
 
 // ───────────────────────── État ─────────────────────────
 // msgs: [{t, match, trusted, norm|null}] ; modbot: derniers msgs mod/bot
-const chans = new Map(CHANS.map(c => ['#' + c, {
-  msgs: [], modbot: [], state: 'INACTIVE', lowSince: null, activeSince: null, alertId: null,
-  lastTrustedText: null, lastTrustedRole: null, lastMsgAt: null, rate: 0, maxRatio: 0,
-}]));
+const chans = new Map();       // '#login' -> état, rempli par loadChans()
+const newChan = () => ({ msgs: [], modbot: [], state: 'INACTIVE', lowSince: null, activeSince: null, alertId: null, lastTrustedText: null, lastTrustedRole: null, lastMsgAt: null, rate: 0, maxRatio: 0 });
+
+async function loadChans() {
+  let list = null;
+  try {
+    const ctrl = AbortSignal.timeout(8000);
+    const r = await fetch(ZEVENT_API, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh) ratdestombola/1.0' }, signal: ctrl });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const live = (await r.json()).live;
+    list = live.filter(s => ZEVENT_LOCATIONS.includes(s.location)).map(s => s.twitch.toLowerCase()).sort();
+    for (const s of live) DISPLAY.set(s.twitch.toLowerCase(), s.display);
+    log(`liste ZEVENT chargée : ${list.length} chaînes (${ZEVENT_LOCATIONS.join('+')}) sur ${live.length} participants`);
+  } catch (e) {
+    list = FALLBACK_CHANS; log(`API ZEVENT indisponible (${e.message}), liste de secours : ${list.length} chaînes`);
+  }
+  CHANS = list;
+  for (const c of CHANS) chans.set('#' + c, newChan());
+}
 const history = [];            // événements (alertes), plus récent en dernier
 const sseClients = new Set();
 const conn = { status: 'connecting', since: Date.now(), nick: '', joined: 0, reconnects: 0 };
@@ -90,7 +110,7 @@ function evaluate() {
     if (c.state === 'INACTIVE' && activeCond) {
       c.state = 'ACTIVE'; c.lowSince = null; c.activeSince = now;
       const trigger = repeat ? 'repeat' : byTrusted ? 'trusted' : 'ratio';
-      const alert = { id: randomUUID(), ts: ts(), chan, ratio: +ratio.toFixed(4), trusted, trigger, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole, endedAt: null };
+      const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: +ratio.toFixed(4), trusted, trigger, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole, endedAt: null };
       c.alertId = alert.id; pushHistory(alert);
       jsonl(ALERTS, { ...alert, transition: 'INACTIVE->ACTIVE', total, matches, repeat, lastModBotMsgs: [...c.modbot] });
       log(`ALERTE ${chan} tombola (ratio=${(ratio * 100).toFixed(1)}% matches=${matches}/${total} trusted=${trusted} repeat=${repeat})`);
@@ -119,7 +139,7 @@ function snapshot() {
   return {
     ts: ts(), conn: { ...conn },
     chans: [...chans].map(([chan, c]) => ({
-      chan, state: c.state, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null, rate: c.rate,
+      chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), state: c.state, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null, rate: c.rate,
       quiet: !c.lastMsgAt || now - c.lastMsgAt > QUIET_AFTER_MS, lastTrustedText: c.lastTrustedText, lastTrustedRole: c.lastTrustedRole,
     })),
   };
@@ -205,7 +225,7 @@ const server = createServer((req, res) => {
   }
   if (url.pathname === '/test-alert') {                                    // fausse alerte pour tester la chaîne de notification, non loggée
     const chan = '#' + (url.searchParams.get('chan') || 'domingo');
-    const alert = { id: randomUUID(), ts: ts(), chan, ratio: 0.1234, trusted: 2, trigger: 'trusted', lastTrustedText: 'Test : tombola fictive, 1€ = 1 ticket', lastTrustedRole: 'moderator', endedAt: null, test: true };
+    const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: 0.1234, trusted: 2, trigger: 'trusted', lastTrustedText: 'Test : tombola fictive, 1€ = 1 ticket', lastTrustedRole: 'moderator', endedAt: null, test: true };
     pushHistory(alert); broadcast('alert', alert); log(`alerte de test ${chan} → ${sseClients.size} client(s)`);
     return json(res, 200, alert);
   }
@@ -230,4 +250,5 @@ function shutdown(sig) {
 }
 process.on('SIGINT', () => shutdown('SIGINT')); process.on('SIGTERM', () => shutdown('SIGTERM'));
 
+await loadChans();
 connect();
