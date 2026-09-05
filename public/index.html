@@ -131,6 +131,11 @@
   .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
   .tag.live { color: var(--live); border-color: var(--live-soft); }
   .tag.test { color: var(--warn); border-color: var(--warn-soft); }
+  .tag.yes { color: var(--ok); }
+  .tag.no { color: var(--danger-text); }
+  .fb { display: flex; gap: 4px; align-items: center; }
+  .fb button { padding: 4px 8px; font-size: 12px; }
+  .fb button.on { border-color: var(--accent); color: var(--accent-soft); }
   .row .x { opacity: 0; transition: opacity .15s; }
   .row:hover .x { opacity: 1; }
 
@@ -330,11 +335,16 @@ function renderHistory() {
       <span class="t">${hhmm(a.ts)}</span>
       <div class="m">
         <div class="l1"><a href="${url(a.chan)}" target="_blank" rel="noopener">${esc(name(a))}</a>
-          ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}</span>` : '<span class="tag live">en cours</span>'}
+          ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}${a.userEnded ? '' : ' env.'}</span>` : '<span class="tag live">en cours</span>'}
           <span class="tag">${esc(trigLabel(a))}</span></div>
         <div class="l2">${esc(a.lastTrustedText || `${Math.round(a.ratio * 100)} % des messages parlent de tombola`)}</div>
       </div>
-      <span class="x"><button class="ghost icon" title="Retirer" data-del="${esc(a.id)}">✕</button></span>
+      <span class="fb">
+        ${!a.endedAt && !a.test ? `<button class="ghost" title="Je vois sur le stream que c’est terminé" data-fb="ended" data-id="${esc(a.id)}">Terminée</button>` : ''}
+        <button class="ghost ${a.verdict === 'true' ? 'on' : ''}" title="C’était une vraie tombola" data-fb="true" data-id="${esc(a.id)}">👍</button>
+        <button class="ghost ${a.verdict === 'false' ? 'on' : ''}" title="Fausse alerte" data-fb="false" data-id="${esc(a.id)}">👎</button>
+        <span class="x"><button class="ghost icon" title="Retirer" data-del="${esc(a.id)}">✕</button></span>
+      </span>
     </div>`).join('');
 }
 function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
@@ -346,6 +356,7 @@ setInterval(() => {
 /* ═══════════ Actions ═══════════ */
 $('live').addEventListener('click', (e) => { const chan = e.target.dataset.dismiss; if (chan) dismissCard(chan); });
 $('history').addEventListener('click', async (e) => {
+  if (e.target.dataset.fb) return fetch('/history/' + e.target.dataset.id + '/feedback', { method: 'POST', body: JSON.stringify({ verdict: e.target.dataset.fb }) });
   const id = e.target.dataset.del; if (!id) return;
   e.target.closest('.row').classList.add('leaving');
   await fetch('/history/' + id, { method: 'DELETE' });

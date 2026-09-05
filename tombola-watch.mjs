@@ -17,6 +17,8 @@ const FALLBACK_CHANS = ["mastu","mistermv","domingo","anyme023","zevent","zerato
 let CHANS = [];                          // logins Twitch, sans '#'
 const DISPLAY = new Map();               // login -> nom affiché par le ZEVENT
 const MATCH_RX = /\btombola\b/i;
+const LOG_RX = /tombola|tirage|ticket|gagnant|\blots?\b|giveaway/i;   // plus large que la détection : sert à rejouer d'autres mots-clés hors ligne
+const CONTEXT_AFTER_MS = 10 * 60_000;  // chat complet conservé après la fin d'une tombola
 
 const EVAL_INTERVAL_MS = 10_000;      // fréquence d'évaluation
 const WINDOW_MS = 3 * 60_000;         // fenêtre ratio / trusted
@@ -43,6 +45,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = process.argv[2] || pjoin(HERE, 'watch-logs');
 mkdirSync(OUT, { recursive: true });
 const SCORES = pjoin(OUT, 'scores.jsonl'), ALERTS = pjoin(OUT, 'alerts.jsonl');
+const MATCHES = pjoin(OUT, 'matches.jsonl'), OFFICIAL = pjoin(OUT, 'official.jsonl'), CONTEXT = pjoin(OUT, 'context.jsonl'), FEEDBACK = pjoin(OUT, 'feedback.jsonl');
 const ts = () => new Date().toISOString();
 const log = (s) => console.log(`${ts()} ${s}`);
 const jsonl = (file, obj) => appendFileSync(file, JSON.stringify(obj) + '\n');
@@ -50,7 +53,7 @@ const jsonl = (file, obj) => appendFileSync(file, JSON.stringify(obj) + '\n');
 // ───────────────────────── État ─────────────────────────
 // msgs: [{t, match, trusted, norm|null}] ; modbot: derniers msgs mod/bot
 const chans = new Map();       // '#login' -> état, rempli par loadChans()
-const newChan = () => ({ msgs: [], modbot: [], state: 'INACTIVE', lowSince: null, activeSince: null, alertId: null, lastTrustedText: null, lastTrustedRole: null, lastTrustedAt: null, lastMsgAt: null, rate: 0, maxRatio: 0 });
+const newChan = () => ({ msgs: [], modbot: [], state: 'INACTIVE', lowSince: null, activeSince: null, alertId: null, lastTrustedText: null, lastTrustedRole: null, lastTrustedAt: null, lastMsgAt: null, endedAt: null, cooldownUntil: 0, rate: 0, maxRatio: 0 });
 
 async function loadChans() {
   let list = null;
@@ -90,6 +93,11 @@ function onChat(chan, login, badges, text) {
   c.lastMsgAt = Date.now();
   if (trusted) { c.lastTrustedText = text; c.lastTrustedRole = r; c.lastTrustedAt = Date.now(); }
   if (modbot) { c.modbot.push({ ts: ts(), user: login, role: r, text }); if (c.modbot.length > KEEP_MODBOT_MSGS) c.modbot.shift(); }
+  // ── logs bruts pour le réglage hors ligne ──
+  const rec = { ts: ts(), chan, user: login, role: r, text };
+  if (LOG_RX.test(text)) jsonl(MATCHES, { ...rec, match });
+  if (modbot) jsonl(OFFICIAL, rec);
+  if (c.state === 'ACTIVE' || (c.endedAt && Date.now() - c.endedAt < CONTEXT_AFTER_MS)) jsonl(CONTEXT, { ...rec, match, alertId: c.alertId || c.lastAlertId });
 }
 
 function evaluate() {
@@ -109,7 +117,7 @@ function evaluate() {
     const activeCond = byRatio || byTrusted || repeat;
     const lowCond = ratio < RATIO_INACTIVE && trusted === 0;
 
-    if (c.state === 'INACTIVE' && activeCond) {
+    if (c.state === 'INACTIVE' && activeCond && now >= c.cooldownUntil) {
       c.state = 'ACTIVE'; c.lowSince = null; c.activeSince = now;
       const trigger = repeat ? 'repeat' : byTrusted ? 'trusted' : 'ratio';
       const fresh = c.lastTrustedAt && now - c.lastTrustedAt <= REPEAT_WINDOW_MS;
@@ -125,7 +133,7 @@ function evaluate() {
         c.state = 'INACTIVE'; c.lowSince = null;
         const ended = history.find(a => a.id === c.alertId);
         if (ended) { ended.endedAt = ts(); broadcast('alert-update', ended); }
-        c.activeSince = null; c.alertId = null;
+        c.activeSince = null; c.lastAlertId = c.alertId; c.alertId = null; c.endedAt = now;
         jsonl(ALERTS, { ts: ts(), chan, transition: 'ACTIVE->INACTIVE', ratio: +ratio.toFixed(4), trusted, total, matches, lastModBotMsgs: [...c.modbot] });
         log(`${chan} : tombola terminée`);
       }
@@ -226,6 +234,22 @@ const server = createServer((req, res) => {
     const id = url.pathname.slice('/history/'.length), i = history.findIndex(a => a.id === id);
     if (i < 0) return json(res, 404, { error: 'inconnu' });
     history.splice(i, 1); broadcast('history-removed', { id }); return json(res, 200, { ok: true });
+  }
+  if (url.pathname.startsWith('/history/') && url.pathname.endsWith('/feedback') && req.method === 'POST') {   // vérité terrain saisie dans la page
+    const id = url.pathname.split('/')[2], a = history.find(x => x.id === id); if (!a) return json(res, 404, { error: 'inconnu' });
+    let body = ''; req.on('data', d => body += d); req.on('end', () => {
+      const verdict = (() => { try { return JSON.parse(body).verdict; } catch { return null; } })();
+      if (!['true', 'false', 'ended'].includes(verdict)) return json(res, 400, { error: 'verdict attendu : true | false | ended' });
+      const c = chans.get(a.chan);
+      if (verdict === 'ended') {
+        a.endedAt = a.endedAt || ts(); a.userEnded = true;
+        if (c && c.alertId === a.id) { c.state = 'INACTIVE'; c.lowSince = null; c.activeSince = null; c.lastAlertId = c.alertId; c.alertId = null; c.endedAt = Date.now(); c.cooldownUntil = Date.now() + INACTIVE_HOLD_MS; }
+      } else a.verdict = verdict;
+      jsonl(FEEDBACK, { ts: ts(), id, chan: a.chan, verdict, alertTs: a.ts, trigger: a.trigger, detectedEnd: verdict === 'ended' ? null : a.endedAt, ratio: a.ratio, trusted: a.trusted, authors: a.authors });
+      log(`retour utilisateur ${a.chan} : ${verdict}`); broadcast('alert-update', a); if (verdict === 'ended') broadcast('state', snapshot());
+      json(res, 200, a);
+    });
+    return;
   }
   if (url.pathname === '/test-alert') {                                    // fausse alerte pour tester la chaîne de notification, non loggée
     const chan = '#' + (url.searchParams.get('chan') || 'domingo');
