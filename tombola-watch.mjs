@@ -207,7 +207,7 @@ function connect() {
 // ───────────────────────── HTTP + SSE ─────────────────────────
 function broadcast(event, data) { const s = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`; for (const res of sseClients) res.write(s); }
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-const PAGE_PATH = pjoin(HERE, 'public', 'index.html');
+const PAGE = readFileSync(pjoin(HERE, 'public', 'index.html'));   // lue une fois : la page servie correspond toujours au serveur qui tourne
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -236,8 +236,7 @@ const server = createServer((req, res) => {
     return json(res, 200, alert);
   }
   if (url.pathname === '/') {
-    try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(readFileSync(PAGE_PATH)); }
-    catch { return json(res, 500, { error: 'public/index.html introuvable' }); }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(PAGE);
   }
   json(res, 404, { error: 'not found' });
 });

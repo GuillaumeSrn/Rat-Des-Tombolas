@@ -261,10 +261,11 @@ function renderConn() {
   $('conn-dot').className = 'dot ' + cls; $('conn-text').textContent = label;
 }
 
-const dismissed = new Set(JSON.parse(store.get('dismissed') || '[]'));   // cartes masquées à la main (par id d'alerte)
+const dismissed = new Set(JSON.parse(store.get('dismissed') || '[]'));   // cartes masquées à la main (par clé de tombola)
+const key = (c) => c.alertId || (c.chan + '@' + c.activeSince);              // une tombola = une alerte ; secours : chaîne + heure de début
 function dismissCard(chanId) {
-  const c = state.chans.find(x => x.chan === chanId); if (!c?.alertId) return;
-  dismissed.add(c.alertId); store.set('dismissed', JSON.stringify([...dismissed].slice(-50)));
+  const c = state.chans.find(x => x.chan === chanId); if (!c) return;
+  dismissed.add(key(c)); store.set('dismissed', JSON.stringify([...dismissed].slice(-50)));
   const el = $('live').querySelector(`[data-chan="${CSS.escape(chanId)}"]`);
   if (el) { el.classList.add('leaving'); setTimeout(renderLive, 250); } else renderLive();
 }
@@ -284,7 +285,7 @@ function updateCard(el, c) {
   el.querySelector('.rate').textContent = `${c.rate} msg/min`;
 }
 function renderLive() {
-  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(c.alertId)).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
+  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(key(c))).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
   $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
   const box = $('live');
   if (!live.length) {
@@ -297,8 +298,8 @@ function renderLive() {
   for (const c of live) {
     keep.add(c.chan);
     let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el || el.dataset.alert !== c.alertId) {           // nouvelle tombola (ou nouvelle sur la même chaîne)
-      el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = c.alertId; el.innerHTML = cardHTML(c);
+    if (!el || el.dataset.alert !== key(c)) {              // nouvelle tombola (ou nouvelle sur la même chaîne)
+      el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = key(c); el.innerHTML = cardHTML(c);
     }
     updateCard(el, c); grid.appendChild(el);                 // appendChild déplace sans recréer : ordre conservé, pas d'animation
   }
