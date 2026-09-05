@@ -9,11 +9,13 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 // ───────────────────────── Chaînes et seuils ─────────────────────────
-// Liste chargée au démarrage depuis l'API publique du ZEVENT : les TOP_N plus grosses cagnottes. Secours : liste figée du 5 sept. 2026.
+// Liste chargée au démarrage depuis l'API publique du ZEVENT. Secours : liste figée du 5 sept. 2026.
 const ZEVENT_API = 'https://zevent.fr/api/';
-const TOP_N = 30;                        // nombre de chaînes gardées, classées par cagnotte
+const ONLY_LAN = true;                   // uniquement les streamers sur le plateau (les tombolas sont des lots physiques)
+const TOP_N = 36;                        // les TOP_N plus grosses cagnottes...
+const EXTRA_MIN_VIEWERS = 3000;          // ...plus toute chaîne du plateau qui a au moins ce nombre de viewers au démarrage
 const EXCLUDED_CHANS = new Set(['zevent']); // chaînes jamais surveillées (chaîne officielle de l'événement, pas un streamer)
-const FALLBACK_CHANS = ["mastu","mistermv","domingo","anyme023","zevent","zerator","antoinedaniel","amixem","florence","joueur_du_grenier","joyca","mcflyetcarlito","ponce","sylvainlyve","jltomy","nia_c","clemovitch","nico_la","mynthos","alphacast","enjoyphoenix","laink","theguill84","etoiles","areliann","sebjdg","shisheyu","byilhann","samueletienne","fantabobshow"];
+const FALLBACK_CHANS = ["mastu","mistermv","domingo","anyme023","antoinedaniel","zerator","mcflyetcarlito","joyca","ponce","sylvainlyve","joueur_du_grenier","amixem","florence","clemovitch","jltomy","nico_la","mynthos","enjoyphoenix","laink","alphacast","theguill84","byilhann","littlebigwhale","etoiles","sebjdg","shisheyu","flamby","dfg","hortyunderscore","areliann","samueletienne","gom4rt","avamind","ultia","pressea","linca","alderiate","bagherajones","jirayalecochon","traytonlol"];
 let CHANS = [];                          // logins Twitch, sans '#'
 const DISPLAY = new Map();               // login -> nom affiché par le ZEVENT
 const MATCH_RX = /\btombola\b/i;
@@ -65,9 +67,12 @@ async function loadChans() {
     const r = await fetch(ZEVENT_API, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh) ratdestombola/1.0' }, signal: ctrl });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const live = (await r.json()).live;
-    list = live.slice().sort((a, b) => b.donationAmount.number - a.donationAmount.number).map(s => s.twitch.toLowerCase()).filter(l => !EXCLUDED_CHANS.has(l)).slice(0, TOP_N);
+    const pool = live.filter(s => (!ONLY_LAN || s.location === 'LAN') && !EXCLUDED_CHANS.has(s.twitch.toLowerCase()));
+    const top = pool.slice().sort((a, b) => b.donationAmount.number - a.donationAmount.number).slice(0, TOP_N);
+    const extra = pool.filter(s => s.online && s.viewersAmount.number >= EXTRA_MIN_VIEWERS && !top.includes(s));
+    list = [...top, ...extra].map(s => s.twitch.toLowerCase());
     for (const s of live) DISPLAY.set(s.twitch.toLowerCase(), s.display);
-    log(`liste ZEVENT chargée : top ${list.length} cagnottes sur ${live.length} participants`);
+    log(`liste ZEVENT chargée : ${top.length} plus grosses cagnottes${ONLY_LAN ? ' du plateau' : ''} + ${extra.length} chaînes à ≥ ${EXTRA_MIN_VIEWERS} viewers (${extra.map(s => s.twitch).join(', ') || 'aucune'}) sur ${live.length} participants`);
   } catch (e) {
     list = FALLBACK_CHANS; log(`API ZEVENT indisponible (${e.message}), liste de secours : ${list.length} chaînes`);
   }
