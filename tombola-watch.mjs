@@ -22,7 +22,8 @@ const MATCH_RX = /\btombola\b/i;
 const LOG_RX = /tombola|tirage|ticket|gagnant|\blots?\b|giveaway/i;   // plus large que la détection : sert à rejouer d'autres mots-clés hors ligne
 
 // ── Détection : une tombola ne démarre que sur une ANNONCE OFFICIELLE (streamer, modérateur, bot connu), jamais sur le chat seul.
-const STRONG_RX = /1 ?(€|euros?)|tickets?|zevent\.fr\/don|en cours/i;   // pattern d'annonce : "1€ = 1 ticket", lien de don, "tombola en cours"
+const STRONG_RX = /1 ?(€|euros?)|tickets?|zevent\.fr\/don|en cours/i;   // pattern d'annonce sûr : "1€ = 1 ticket", lien de don, "tombola en cours" (humains et bots)
+const MEDIUM_RX = /particip|à gagner|remporter|\ben tombola\b|mise en jeu|faites (vos|des|un) dons?|plus que \d+ ?min|pseudo/i;   // formulations d'annonce, humains uniquement (les bots répètent des timers)
 const QUESTION_RX = /\?/;                                             // "à quand ta tombola ?" n'est pas une annonce
 const FUTURE_RX = /prochaine|bient[ôo]t|tout [àa] l.heure|demain/i;   // "prochaine tombola à 16h30" non plus
 const DEDUP_MS = 30 * 60_000;         // une même annonce ne redéclenche pas pendant ce délai (messages automatiques des bots)
@@ -119,7 +120,9 @@ function onChat(chan, login, badges, text, replyTo) {
   if (tc.state === 'ACTIVE' || now < tc.cooldownUntil) return;
   const n = normalize(text).slice(0, 80);
   if (tc.seen.has(n) && now - tc.seen.get(n) < DEDUP_MS) return;       // même annonce déjà exploitée (timer de bot)
-  if (STRONG_RX.test(text)) startTombola(target, tc, 'announce', n, target !== chan ? chan : null);   // sans pattern d'annonce, on ne déclenche pas
+  const via = target !== chan ? chan : null;
+  if (STRONG_RX.test(text)) startTombola(target, tc, 'announce', n, via);
+  else if (r !== 'bot' && MEDIUM_RX.test(text)) startTombola(target, tc, 'announce', n, via);   // « tombola » seul ne suffit pas, même venant d'un mod
 }
 
 function startTombola(chan, c, trigger, n, via = null) {

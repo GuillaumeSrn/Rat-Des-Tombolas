@@ -137,8 +137,6 @@
   .fb { display: flex; gap: 4px; align-items: center; }
   .fb button { padding: 4px 8px; font-size: 12px; }
   .fb button.on { border-color: var(--accent); color: var(--accent-soft); }
-  .row .x { opacity: 0; transition: opacity .15s; }
-  .row:hover .x { opacity: 1; }
 
   /* ═══════════ Toasts ═══════════ */
   #toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
@@ -156,7 +154,7 @@
   @keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
   @keyframes sniff { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-2px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .row .t { display: none; } .row .x, .card .close { opacity: 1; } }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .row .t { display: none; } .card .close { opacity: 1; } }
 </style>
 </head>
 <body>
@@ -344,7 +342,6 @@ function renderHistory() {
         ${!a.endedAt && !a.test ? `<button class="ghost" title="Je vois sur le stream que c’est terminé" data-fb="ended" data-id="${esc(a.id)}">Terminée</button>` : ''}
         <button class="ghost ${a.verdict === 'true' ? 'on' : ''}" title="C’était une vraie tombola" data-fb="true" data-id="${esc(a.id)}">👍</button>
         <button class="ghost ${a.verdict === 'false' ? 'on' : ''}" title="Fausse alerte" data-fb="false" data-id="${esc(a.id)}">👎</button>
-        ${a.endedAt ? `<span class="x"><button class="ghost icon" title="Retirer de la liste" data-del="${esc(a.id)}">✕</button></span>` : ''}
       </span>
     </div>`).join('');
 }
@@ -356,11 +353,8 @@ setInterval(() => {
 
 /* ═══════════ Actions ═══════════ */
 $('live').addEventListener('click', (e) => { const chan = e.target.dataset.dismiss; if (chan) dismissCard(chan); });
-$('history').addEventListener('click', async (e) => {
-  if (e.target.dataset.fb) return fetch('/history/' + e.target.dataset.id + '/feedback', { method: 'POST', body: JSON.stringify({ verdict: e.target.dataset.fb }) });
-  const id = e.target.dataset.del; if (!id) return;
-  e.target.closest('.row').classList.add('leaving');
-  await fetch('/history/' + id, { method: 'DELETE' });
+$('history').addEventListener('click', (e) => {
+  if (e.target.dataset.fb) fetch('/history/' + e.target.dataset.id + '/feedback', { method: 'POST', body: JSON.stringify({ verdict: e.target.dataset.fb }) });
 });
 $('btn-clear').onclick = async () => { if (confirm('Effacer les tombolas terminées de la liste ?')) await fetch('/history', { method: 'DELETE' }); };
 $('btn-test').onclick = () => fetch('/test-alert?chan=domingo');
