@@ -175,8 +175,8 @@
   /* ── disposition : contenu + panneau des chaînes à droite ── */
   .layout { display: flex; gap: 28px; align-items: flex-start; }
   .layout main { flex: 1; min-width: 0; }
-  #side { width: 360px; flex: none; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
-  #side .grid { grid-template-columns: 1fr; gap: 6px; }
+  #side { width: 360px; flex: none; position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 32px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  #side .grid { grid-template-columns: 1fr; gap: 6px; overflow-y: auto; max-height: 520px; min-height: 0; padding-right: 4px; scrollbar-width: thin; }
   #side .chip { padding: 8px 12px; font-size: 14px; }
   #side .chip .x { display: inline; opacity: 0; }
   #side .chip:hover .x { opacity: 1; }
@@ -185,7 +185,7 @@
   @media (max-width: 980px) {
     .layout { flex-direction: column; }
     #side { width: 100%; position: static; max-height: none; }
-    #side .grid { grid-template-columns: 1fr 1fr; }
+    #side .grid { grid-template-columns: 1fr 1fr; max-height: 360px; }
     #side .chip .x { opacity: 1; }
   }
   /* ── infobulles custom (data-tip), instantanées ── */
