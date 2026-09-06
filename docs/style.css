@@ -127,14 +127,15 @@
   .row .x button { opacity: .55; }
   .row:hover .x button { opacity: 1; }
   .chip .x { display: none; background: none; border: 0; color: var(--text-dim); padding: 0 2px; cursor: pointer; font-size: 13px; }
-  .chip.custom:hover .x { display: inline; }
+  .chip:hover .x { display: inline; }
+  .chip .x:hover { color: var(--live); }
   .chip.custom { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
   .chip.custom .n::after { content: " ✦"; color: var(--accent-soft); font-size: 10px; }
   form.add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   form.add input { font: inherit; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); min-width: 240px; flex: 1; max-width: 360px; }
   form.add input:focus { outline: none; border-color: var(--accent); }
   form.add small { width: 100%; color: var(--text-dim); font-size: 12px; }
-  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .chip .x { display: inline; } }
 
   /* ── header commun ── */
   a.brand { color: inherit; }

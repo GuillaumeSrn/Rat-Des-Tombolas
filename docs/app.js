@@ -26,6 +26,7 @@ let history = store.get('history', []).filter(a => Date.now() - new Date(a.ts) <
 const saveHistory = () => store.set('history', history.slice(-100));
 const dismissed = new Set(store.get('dismissedCards', []));            // cartes masquées à la main (clé de tombola)
 const customChannels = store.get('customChannels', []);               // [{login, name}] ajoutées par l'utilisateur
+const hiddenChannels = new Set(store.get('hiddenChannels', []));       // chaînes de la liste par défaut retirées par l'utilisateur
 let state = null;
 
 /* ═══════════ message d'accueil (masquable pour de bon) ═══════════ */
@@ -133,11 +134,12 @@ function renderChans() {
   const grid = $('chans'), keep = new Set();
   for (const c of list) {
     keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span>${c.custom ? `<button class="x" title="Retirer cette chaîne" data-remove="${esc(c.login)}">✕</button>` : ''}`; }
+    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span><button class="x" title="Ne plus surveiller cette chaîne" data-remove="${esc(c.login)}">✕</button>`; }
     el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : '') + (c.custom ? ' custom' : ''); el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
     el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'); el.querySelector('.r').textContent = c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
   }
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
+  const r = $('restore'); r.hidden = !hiddenChannels.size; r.textContent = `Rétablir les ${hiddenChannels.size} chaîne${hiddenChannels.size > 1 ? 's' : ''} retirée${hiddenChannels.size > 1 ? 's' : ''}`;
 }
 function renderHistory() {
   const items = [...history].reverse();
@@ -155,7 +157,7 @@ function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(
 setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
 
 /* ═══════════ watcher ═══════════ */
-const watcher = createWatcher({ channels: [...CHANNELS, ...customChannels.map(c => ({ ...c, custom: true }))], on: {
+const watcher = createWatcher({ channels: [...CHANNELS.filter(c => !hiddenChannels.has(c.login)), ...customChannels.map(c => ({ ...c, custom: true }))], on: {
   state: (s) => { state = s; renderConn(); renderLive(); renderChans(); $('updated').textContent = 'Mis à jour à l’instant'; },
   alert: (a) => { history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); },
   end: (a) => { const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = { ...history[i], endedAt: a.endedAt, userEnded: a.userEnded }; saveHistory(); renderHistory(); },
@@ -197,6 +199,14 @@ $('add-form').addEventListener('submit', async (e) => {
 });
 $('chans').addEventListener('click', (e) => {
   const login = e.target.dataset.remove; if (!login) return;
-  watcher.removeChannel(login); const i = customChannels.findIndex(c => c.login === login); if (i >= 0) customChannels.splice(i, 1); store.set('customChannels', customChannels);
+  watcher.removeChannel(login);
+  const i = customChannels.findIndex(c => c.login === login);
+  if (i >= 0) { customChannels.splice(i, 1); store.set('customChannels', customChannels); }
+  else { hiddenChannels.add(login); store.set('hiddenChannels', [...hiddenChannels]); }
+  toast('Chaîne retirée', `${login} n’est plus surveillée sur cet appareil.`);
 });
+$('restore').onclick = () => {
+  for (const login of hiddenChannels) { const c = CHANNELS.find(x => x.login === login); if (c) watcher.addChannel(c.login, c.name); }
+  hiddenChannels.clear(); store.set('hiddenChannels', []); renderChans();
+};
 renderAll();
