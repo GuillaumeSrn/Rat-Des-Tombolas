@@ -358,7 +358,7 @@ $('btn-test').onclick = async () => {
   history.push(a); saveHistory(); renderHistory(); toast(a);
   const ok = await notify(a);
   if (!ok) toast('Pas de notification système', notifStatus() === 'denied' ? 'Bloquées pour ce site dans le navigateur.' : notifStatus() === 'unsupported' ? 'Non gérées par ce navigateur.' : 'Autorisation non accordée.');
-});
+};
 $('add-form').addEventListener('submit', (e) => {
   e.preventDefault(); const input = $('add-input'), login = watcher.addChannel(input.value);
   if (!login) { $('add-hint').textContent = 'Pseudo invalide ou chaîne déjà surveillée.'; return; }
