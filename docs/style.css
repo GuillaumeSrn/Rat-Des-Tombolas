@@ -194,7 +194,7 @@
   }
   /* ── infobulles custom (data-tip), instantanées ── */
   [data-tip] { position: relative; }
-  [data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; background: var(--text); color: var(--bg); font-size: 12.5px; line-height: 1.35; padding: 6px 10px; border-radius: 8px; white-space: nowrap; max-width: 280px; box-shadow: var(--shadow); opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .12s, transform .12s; }
+  [data-tip] { overflow: visible; }
+  [data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; background: var(--text); color: var(--bg); font-size: 12.5px; line-height: 1.35; padding: 6px 10px; border-radius: 8px; white-space: normal; width: max-content; max-width: min(280px, 80vw); text-align: left; box-shadow: var(--shadow); opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .12s, transform .12s; }
   [data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: none; transition-delay: .08s; }
   .brand [data-tip]::after, .hero [data-tip]::after { right: auto; left: 0; }
-  [data-tip].wrap::after { white-space: normal; width: max-content; }
