@@ -37,6 +37,15 @@ const hero = $('hero');
 hero.hidden = !!store.get('heroDismissed', false);
 $('hero-close').onclick = () => { hero.hidden = true; store.set('heroDismissed', true); };
 
+/* ═══════════ panneau des chaînes ═══════════ */
+const narrow = matchMedia('(max-width: 980px)');
+document.body.classList.toggle('side-hidden', !!store.get('sideHidden', false));
+$('btn-side').onclick = () => {
+  if (narrow.matches) document.body.classList.toggle('side-open');
+  else { const hidden = document.body.classList.toggle('side-hidden'); store.set('sideHidden', hidden); }
+};
+$('side-close').onclick = () => document.body.classList.remove('side-open');
+
 /* ═══════════ soutien ═══════════ */
 const SUPPORT_URL = 'https://buymeacoffee.com/orsacce';   // lien Buy Me a Coffee du développeur ; vide = icône masquée
 if (SUPPORT_URL) for (const id of ['coffee', 'coffee-footer']) { const c = $(id); c.href = SUPPORT_URL; c.hidden = false; }
@@ -107,14 +116,14 @@ function renderConn() {
 function cardHTML(c) {
   return `<div class="top"><div class="avatar" style="background:hsl(${hue(c.login)} 55% 45%)">${esc(c.name[0])}</div>
       <div><div class="name">${esc(c.name)}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div></div>
-    <p class="quote"></p>
+    <p class="quote" data-open="0"></p>
     <div class="foot"><span class="rate"></span><span class="spacer"></span>
       <a href="${twitchUrl(c.login)}" target="_blank" rel="noopener"><button>Voir le stream</button></a>
       <a href="${donUrl(c.login)}" target="_blank" rel="noopener"><button class="primary">Participer</button></a>
       <button class="ghost" data-end="${esc(c.alertId)}" title="Je vois sur le stream que c’est terminé">Terminée</button></div>`;
 }
 function updateCard(el, c) {
-  const q = el.querySelector('.quote'), html = c.text ? `${esc(c.text)}<small>${esc(ROLE[c.role] || '')}</small>` : '';
+  const q = el.querySelector('.quote'), html = c.text ? `<span class="txt">${esc(c.text)}</span><small>${esc(ROLE[c.role] || '')} · cliquer pour tout lire</small>` : '';
   if (q.innerHTML !== html) q.innerHTML = html; el.querySelector('.rate').textContent = `${c.rate} msg/min`;
 }
 function renderLive() {
@@ -126,8 +135,9 @@ function renderLive() {
   const keep = new Set();
   for (const c of live) {
     keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el || el.dataset.alert !== cardKey(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = cardKey(c); el.innerHTML = cardHTML(c); }
-    updateCard(el, c); grid.appendChild(el);
+    if (!el || el.dataset.alert !== cardKey(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card enter'; el.dataset.chan = c.chan; el.dataset.alert = cardKey(c); el.innerHTML = cardHTML(c); el.addEventListener('animationend', () => el.classList.remove('enter'), { once: true }); }
+    updateCard(el, c);
+    if (grid.children[[...keep].length - 1] !== el) grid.appendChild(el);   // ne déplace le nœud que si l'ordre a changé (déplacer relance les animations)
   }
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
 }
@@ -144,17 +154,19 @@ function renderChans() {
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
   const r = $('restore'); r.hidden = !hiddenChannels.size; r.textContent = `Rétablir les ${hiddenChannels.size} chaîne${hiddenChannels.size > 1 ? 's' : ''} retirée${hiddenChannels.size > 1 ? 's' : ''}`;
 }
+const knownRows = new Set();
 function renderHistory() {
   const items = [...history].reverse();
   $('hist-count').textContent = items.length ? `${items.length} tombola${items.length > 1 ? 's' : ''}` : 'rien pour l’instant';
   $('btn-clear').hidden = !items.length;
   $('history').innerHTML = items.map(a => `
-    <div class="row" data-id="${esc(a.id)}"><span class="t">${hhmm(a.ts)}</span>
+    <div class="row${knownRows.has(a.id) ? '' : ' enter'}" data-id="${esc(a.id)}"><span class="t">${hhmm(a.ts)}</span>
       <div class="m"><div class="l1">${a.test ? `<b>${esc(a.name)}</b>` : `<a href="${twitchUrl(a.login)}" target="_blank" rel="noopener">${esc(a.name)}</a>`}
         ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${a.stale ? 'session précédente' : dur(a.ts, a.endedAt) + (a.userEnded ? '' : ' env.')}</span>` : '<span class="tag live">en cours</span>'}
         <span class="tag">${esc(who(a))}</span></div>
       <div class="l2" title="${esc(a.text || '')}">${esc(a.text || '')}</div></div>
       <span class="x"><button class="ghost icon" title="Retirer cette ligne" data-del="${esc(a.id)}">✕</button></span></div>`).join('');
+  for (const x of items) knownRows.add(x.id);
 }
 function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
 setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
@@ -173,6 +185,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) watc
 /* ═══════════ actions ═══════════ */
 function endTombola(alertId) { watcher.endByUser(alertId); }   // le callback end() met l'historique à jour
 $('live').addEventListener('click', (e) => {
+  const q = e.target.closest('.quote'); if (q) { q.classList.toggle('open'); return; }
   const id = e.target.dataset.end; if (!id) return;
   e.target.closest('.card').classList.add('leaving'); setTimeout(() => endTombola(id), 250);
 });

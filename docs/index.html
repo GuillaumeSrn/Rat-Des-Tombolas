@@ -24,45 +24,46 @@
     <div><h1>Rat des Tombolas</h1><p>Sois prévenu dès qu'une tombola démarre sur le ZEVENT.</p></div>
   </div>
   <div class="bar">
-    <span class="pill" id="conn-pill" title="Connexion au chat Twitch"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
-    <button class="pill" id="notif-pill" title="Notifications système : cliquer pour activer"><span class="dot" id="notif-dot"></span><span id="notif-text">Notifications</span></button>
+    <span class="pill" id="conn-pill" data-tip="Connexion au chat Twitch"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
+    <button class="pill" id="notif-pill" data-tip="Notifications système : cliquer pour activer"><span class="dot" id="notif-dot"></span><span id="notif-text">Notifications</span></button>
     <span class="sep"></span>
-    <a href="./comment-ca-marche.html" title="Ce que fait la page, comment une tombola est détectée, les limites"><button class="ghost">Comment ça marche</button></a>
-    <button id="btn-test" class="ghost" title="Affiche une fausse alerte pour vérifier que les notifications arrivent">Tester</button>
-    <button id="btn-theme" class="ghost icon" title="Thème"></button>
-    <a id="coffee" class="coffee" hidden target="_blank" rel="noopener" title="Un café pour le rat ? Le vrai don, c'est au ZEVENT.">☕</a>
-    <a href="https://zevent.fr/don" target="_blank" rel="noopener" title="Faire un don aux associations du ZEVENT"><button class="primary">Donner au ZEVENT</button></a>
+    <button id="btn-side" class="ghost" data-tip="Afficher ou masquer les chaînes surveillées">Chaînes</button>
+    <a href="./comment-ca-marche.html" data-tip="Ce que fait la page, comment une tombola est détectée, les limites"><button class="ghost">Comment ça marche</button></a>
+    <button id="btn-test" class="ghost" data-tip="Affiche une fausse alerte pour vérifier que les notifications arrivent">Tester</button>
+    <button id="btn-theme" class="ghost icon" data-tip="Thème"></button>
+    <a id="coffee" class="coffee" hidden target="_blank" rel="noopener" data-tip="Un café pour le rat ? Le vrai don, c'est au ZEVENT.">☕</a>
+    <a href="https://zevent.fr/don" target="_blank" rel="noopener" data-tip="Faire un don aux associations du ZEVENT"><button class="primary">Donner au ZEVENT</button></a>
   </div>
 </header>
 
 <div class="hero" id="hero" hidden>
-  <button class="ghost icon close" id="hero-close" title="Ne plus afficher ce message">✕</button>
+  <button class="ghost icon close" id="hero-close" data-tip="Ne plus afficher ce message">✕</button>
   <p><b>Gratuit, sans compte, rien ne quitte ton navigateur.</b> Dès qu'un modérateur annonce une tombola sur une chaîne du plateau, tu reçois une notification avec le lien pour participer. <b>Garde cet onglet ouvert.</b></p>
   <div class="cta"><button id="btn-notif" class="primary">Activer les notifications</button><small id="notif-hint"></small></div>
 </div>
 
-<section>
-  <div class="sec-head"><h2>En cours</h2><span class="count" id="live-count"></span></div>
-  <div id="live"></div>
-</section>
-
-<section>
-  <div class="sec-head"><h2>Historique</h2><span class="count" id="hist-count"></span><span class="spacer"></span><button id="btn-clear" class="ghost" hidden>Tout effacer</button></div>
-  <div id="history" class="list"></div>
-</section>
-
-<section>
-  <div class="sec-head"><h2>Chaînes surveillées</h2><span class="count" id="chan-count"></span></div>
-  <div id="chans" class="grid"></div>
-  <form class="add" id="add-form" autocomplete="off">
-    <input id="add-input" placeholder="Ajouter une chaîne : pseudo ou lien twitch.tv/…" spellcheck="false">
-    <button class="primary" type="submit">Ajouter</button>
-    <small id="add-hint">Les chaînes ajoutées (✦) sont mémorisées sur cet appareil. Survole une chaîne pour la retirer.</small>
-    <button type="button" class="ghost" id="restore" hidden></button>
-  </form>
-</section>
-
-
+<div class="layout">
+  <main>
+    <section id="sec-live">
+      <div class="sec-head"><h2>En cours</h2><span class="count" id="live-count"></span></div>
+      <div id="live"></div>
+    </section>
+    <section id="sec-history">
+      <div class="sec-head"><h2>Historique</h2><span class="count" id="hist-count"></span><span class="spacer"></span><button id="btn-clear" class="ghost" hidden>Tout effacer</button></div>
+      <div id="history" class="list"></div>
+    </section>
+  </main>
+  <aside id="side">
+    <div class="sec-head"><h2>Chaînes surveillées</h2><span class="count" id="chan-count"></span><span class="spacer"></span><button class="ghost icon" id="side-close" data-tip="Fermer">✕</button></div>
+    <form class="add" id="add-form" autocomplete="off">
+      <input id="add-input" placeholder="Ajouter : pseudo ou lien twitch.tv/…" spellcheck="false">
+      <button class="primary" type="submit">Ajouter</button>
+      <small id="add-hint">Les chaînes ajoutées (✦) sont mémorisées sur cet appareil. Survole une chaîne pour la retirer.</small>
+      <button type="button" class="ghost" id="restore" hidden></button>
+    </form>
+    <div id="chans" class="grid"></div>
+  </aside>
+</div>
 
 <footer>
   <span id="updated">—</span>
