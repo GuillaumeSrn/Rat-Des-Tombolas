@@ -37,15 +37,6 @@ const hero = $('hero');
 hero.hidden = !!store.get('heroDismissed', false);
 $('hero-close').onclick = () => { hero.hidden = true; store.set('heroDismissed', true); };
 
-/* ═══════════ panneau des chaînes ═══════════ */
-const narrow = matchMedia('(max-width: 980px)');
-document.body.classList.toggle('side-hidden', !!store.get('sideHidden', false));
-$('btn-side').onclick = () => {
-  if (narrow.matches) document.body.classList.toggle('side-open');
-  else { const hidden = document.body.classList.toggle('side-hidden'); store.set('sideHidden', hidden); }
-};
-$('side-close').onclick = () => document.body.classList.remove('side-open');
-
 /* ═══════════ soutien ═══════════ */
 const SUPPORT_URL = 'https://buymeacoffee.com/orsacce';   // lien Buy Me a Coffee du développeur ; vide = icône masquée
 if (SUPPORT_URL) for (const id of ['coffee', 'coffee-footer']) { const c = $(id); c.href = SUPPORT_URL; c.hidden = false; }

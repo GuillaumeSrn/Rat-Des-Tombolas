@@ -172,21 +172,21 @@
   .row:hover .m .l2 { white-space: normal; overflow: visible; }
   @media (max-width: 760px) { header { flex-direction: column; align-items: stretch; } .bar { margin-left: 0; } .bar .sep { display: none; } }
 
-  /* ── disposition : contenu + panneau latéral des chaînes ── */
+  /* ── disposition : contenu + panneau des chaînes à droite ── */
   .layout { display: flex; gap: 28px; align-items: flex-start; }
   .layout main { flex: 1; min-width: 0; }
-  #side { width: 340px; flex: none; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
-  #side .grid { grid-template-columns: 1fr 1fr; }
+  #side { width: 360px; flex: none; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  #side .grid { grid-template-columns: 1fr; gap: 6px; }
+  #side .chip { padding: 8px 12px; font-size: 14px; }
+  #side .chip .x { display: inline; opacity: 0; }
+  #side .chip:hover .x { opacity: 1; }
   #side form.add { margin: 0 0 14px; }
   #side form.add input { min-width: 0; max-width: none; }
-  #side .sec-head .icon { display: none; }
-  body.side-hidden #side { display: none; }
   @media (max-width: 980px) {
-    #side { position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 92vw); max-height: none; border-radius: 0; z-index: 20; box-shadow: var(--shadow); transform: translateX(105%); transition: transform .25s; display: block; }
-    body.side-open #side { transform: none; }
-    body.side-hidden #side { display: block; }
-    #side .sec-head .icon { display: inline-flex; }
-    #side .grid { grid-template-columns: 1fr; }
+    .layout { flex-direction: column; }
+    #side { width: 100%; position: static; max-height: none; }
+    #side .grid { grid-template-columns: 1fr 1fr; }
+    #side .chip .x { opacity: 1; }
   }
   /* ── infobulles custom (data-tip), instantanées ── */
   [data-tip] { position: relative; }
