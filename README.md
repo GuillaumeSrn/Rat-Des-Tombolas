@@ -1,5 +1,7 @@
 # 🐀 Rat des Tombolas
 
+**https://ratdestombolas.fr**
+
 Sois prévenu dès qu'une tombola démarre sur les chaînes du ZEVENT.
 
 **Gratuit, sans compte, rien ne quitte ton navigateur.** La page écoute les chats Twitch des plus grosses chaînes du plateau, détecte les annonces de tombola faites par les modérateurs, et t'envoie une notification avec le lien pour participer.
@@ -27,7 +29,7 @@ Puis http://localhost:8790.
 
 ## Version « watcher » (Node)
 
-`tombola-watch.mjs` est la version serveur, utilisée pour construire et régler la détection : elle écoute les mêmes chats depuis Node 22 (zéro dépendance), sert une page locale sur :8787 et écrit des logs détaillés dans `watch-logs/` (scores toutes les 10 s, alertes, messages des modérateurs, chat pendant les tombolas, retours utilisateur). Utile pour affiner les règles hors ligne.
+`tombola-watch.mjs` écoute les mêmes chats depuis Node 22 (zéro dépendance), sert la page publique sur http://localhost:8787 et écrit des logs détaillés dans `watch-logs/` (scores toutes les 10 s, alertes, messages des modérateurs, chat pendant les tombolas). C'est l'outil qui a servi à construire et régler la détection hors ligne.
 
 ```
 npm start

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Rat des Tombolas — détecte les tombolas en cours sur des chaînes Twitch (IRC anonyme) et prévient via une page locale.
+// Rat des Tombolas — watcher Node : écoute les chats Twitch (IRC anonyme), détecte les tombolas et écrit des logs
+// détaillés pour régler la détection. Sert aussi la page publique (docs/) sur :8787, qui fait sa propre détection dans le navigateur.
 // Node 22+, zéro dépendance. Usage : node tombola-watch.mjs [dossier-logs]   (défaut : ./watch-logs)
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -81,7 +82,6 @@ async function loadChans() {
   for (const c of CHANS) chans.set('#' + c, newChan());
 }
 const history = [];            // événements (alertes), plus récent en dernier
-const sseClients = new Set();
 const conn = { status: 'connecting', since: Date.now(), nick: '', joined: 0, reconnects: 0 };
 
 const normalize = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -236,63 +236,24 @@ function connect() {
   ws.addEventListener('error', (e) => log('IRC erreur ' + (e.message || 'ws error')));
 }
 
-// ───────────────────────── HTTP + SSE ─────────────────────────
-function broadcast(event, data) { const s = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`; for (const res of sseClients) res.write(s); }
+// ───────────────────────── HTTP : page publique (docs/) + état en lecture ─────────────────────────
+function broadcast() {}                                                  // plus de flux SSE : la page fait sa propre détection
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-const PAGE = readFileSync(pjoin(HERE, 'public', 'index.html'));   // lue une fois : la page servie correspond toujours au serveur qui tourne
-
+const DOCS = pjoin(HERE, 'docs');
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/events') {
-    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    res.write(`event: init\ndata: ${JSON.stringify({ state: snapshot(), history })}\n\n`);
-    sseClients.add(res); req.on('close', () => sseClients.delete(res));
-    return;
-  }
   if (url.pathname === '/state') return json(res, 200, snapshot());
-  if (url.pathname === '/history' && req.method === 'GET') return json(res, 200, history);
-  if (url.pathname === '/history' && req.method === 'DELETE') {          // efface l'historique en mémoire (les .jsonl sont conservés)
-    const kept = history.filter(a => !a.endedAt); history.length = 0; history.push(...kept);   // les tombolas en cours restent
-    broadcast('history-cleared', { kept: kept.map(a => a.id) }); return json(res, 200, { ok: true, kept: kept.length });
-  }
-  if (url.pathname.startsWith('/history/') && req.method === 'DELETE') {
-    const id = url.pathname.slice('/history/'.length), i = history.findIndex(a => a.id === id);
-    if (i < 0) return json(res, 404, { error: 'inconnu' });
-    if (!history[i].endedAt) return json(res, 409, { error: 'tombola en cours : marque-la terminée d’abord' });
-    history.splice(i, 1); broadcast('history-removed', { id }); return json(res, 200, { ok: true });
-  }
-  if (url.pathname.startsWith('/history/') && url.pathname.endsWith('/feedback') && req.method === 'POST') {   // vérité terrain saisie dans la page
-    const id = url.pathname.split('/')[2], a = history.find(x => x.id === id); if (!a) return json(res, 404, { error: 'inconnu' });
-    let body = ''; req.on('data', d => body += d); req.on('end', () => {
-      const verdict = (() => { try { return JSON.parse(body).verdict; } catch { return null; } })();
-      if (!['true', 'false', 'ended'].includes(verdict)) return json(res, 400, { error: 'verdict attendu : true | false | ended' });
-      const c = chans.get(a.chan);
-      if (verdict === 'ended') {
-        a.endedAt = a.endedAt || ts(); a.userEnded = true;
-        if (c && c.alertId === a.id) endTombola(a.chan, c, 'utilisateur');
-      } else a.verdict = verdict;
-      jsonl(FEEDBACK, { ts: ts(), id, chan: a.chan, verdict, alertTs: a.ts, trigger: a.trigger, detectedEnd: verdict === 'ended' ? null : a.endedAt, text: a.lastTrustedText });
-      log(`retour utilisateur ${a.chan} : ${verdict}`); broadcast('alert-update', a); if (verdict === 'ended') broadcast('state', snapshot());
-      json(res, 200, a);
-    });
-    return;
-  }
-  if (url.pathname === '/test-alert') {                                    // fausse alerte pour tester la chaîne de notification, non loggée
-    const chan = '#' + (url.searchParams.get('chan') || 'domingo');
-    const alert = { id: randomUUID(), ts: ts(), chan, display: DISPLAY.get(chan.slice(1)) || chan.slice(1), ratio: 0.1234, trigger: 'announce', lastTrustedText: 'Test : tombola fictive, 1€ = 1 ticket', lastTrustedRole: 'moderator', endedAt: null, test: true };
-    const c = chans.get(chan);                                              // la chaîne passe aussi "en cours" pour tester la carte (fin automatique au silence)
-    if (c && c.state === 'INACTIVE') { c.state = 'ACTIVE'; c.activeSince = Date.now(); c.alertId = alert.id; c.lastTrustedText = alert.lastTrustedText; c.lastTrustedRole = 'moderator'; c.lastTrustedAt = Date.now(); c.lastOfficialAt = Date.now(); }
-    pushHistory(alert); broadcast('alert', alert); broadcast('state', snapshot()); log(`alerte de test ${chan} → ${sseClients.size} client(s)`);
-    return json(res, 200, alert);
-  }
-  if (url.pathname === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(PAGE);
-  }
-  json(res, 404, { error: 'not found' });
+  if (url.pathname === '/history') return json(res, 200, history);
+  const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
+  if (rel.includes('..') || !/^[\w./-]+$/.test(rel)) return json(res, 404, { error: 'not found' });
+  try {
+    const body = readFileSync(pjoin(DOCS, rel)); const ext = rel.slice(rel.lastIndexOf('.'));
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache' }); res.end(body);
+  } catch { json(res, 404, { error: 'not found' }); }
 });
 server.on('error', (e) => { log(`HTTP : ${e.code === 'EADDRINUSE' ? `port ${HTTP_PORT} déjà utilisé (un autre watcher tourne ?)` : e.message}`); process.exit(1); });
 server.listen(HTTP_PORT, '127.0.0.1', () => log(`Page : http://localhost:${HTTP_PORT}`));
-setInterval(() => { for (const res of sseClients) res.write(': ping\n\n'); }, 30_000);
 
 // ───────────────────────── Arrêt ─────────────────────────
 function shutdown(sig) {
@@ -300,7 +261,7 @@ function shutdown(sig) {
   const top = [...chans].map(([chan, c]) => ({ chan, state: c.state, maxRatio: +(c.maxRatio * 100).toFixed(1) })).filter(x => x.maxRatio > 0 || x.state === 'ACTIVE').sort((a, b) => b.maxRatio - a.maxRatio);
   log('ratio max % par chaîne : ' + JSON.stringify(top));
   try { ws?.close(1000, sig); } catch {}
-  server.close(); for (const r of sseClients) r.end();
+  server.close();
   setTimeout(() => process.exit(0), 300);
 }
 process.on('SIGINT', () => shutdown('SIGINT')); process.on('SIGTERM', () => shutdown('SIGTERM'));
