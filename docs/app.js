@@ -51,8 +51,8 @@ $('btn-theme').onclick = () => { const cur = store.get('theme', 'auto'); const n
 const hasNotif = 'Notification' in window;
 const UA = navigator.userAgent, isAndroid = /Android/i.test(UA), isIOS = /iPhone|iPad|iPod/i.test(UA), isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const HINTS = {
-  default: isAndroid ? 'Chrome a peut-être masqué la demande : touche l’icône 🔔 barrée dans la barre d’adresse, ou Réglages du site → Notifications → Autoriser.' : 'Autorise les notifications dans la fenêtre qui s’ouvre.',
-  denied: isAndroid ? 'Bloquées pour ce site : touche l’icône 🔒 dans la barre d’adresse → Autorisations → Notifications → Autoriser, puis recharge.' : 'Bloquées pour ce site : clique l’icône à gauche de l’adresse → Notifications → Autoriser, puis recharge.',
+  default: isAndroid ? 'Sur Android : Paramètres du téléphone → Notifications → ton navigateur (Chrome…) → Autoriser. Puis reviens ici et touche à nouveau « Activer ».' : 'Autorise les notifications dans la fenêtre qui s’ouvre.',
+  denied: isAndroid ? 'Sur Android : Paramètres du téléphone → Notifications → ton navigateur (Chrome…) → Autoriser. Puis, dans le navigateur, icône 🔒 à gauche de l’adresse → Notifications → Autoriser, et recharge.' : 'Bloquées pour ce site : clique l’icône à gauche de l’adresse → Notifications → Autoriser, puis recharge.',
   unsupported: isIOS && !isStandalone ? 'Sur iPhone : Partager → « Sur l’écran d’accueil », puis ouvre la page depuis l’icône. Les notifications marchent seulement dans cette version.' : 'Ton navigateur ne gère pas les notifications.',
 };
 let swReg = null;

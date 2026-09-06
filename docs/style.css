@@ -99,7 +99,7 @@
   .chip.active { border-color: var(--live-soft); background: var(--live-tint); }
   .chip.active .n { color: var(--text); font-weight: 600; }
 
-  #toasts { position: fixed; right: 14px; bottom: 14px; left: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 10; pointer-events: none; }
+  #toasts { position: fixed; right: 14px; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 10; pointer-events: none; }
   .toast { pointer-events: auto; margin-left: auto; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--live); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); max-width: 360px; cursor: pointer; animation: slide .35s cubic-bezier(.2,.8,.2,1) both; }
   .toast.out { animation: fade .3s ease both; }
   .toast .b { font-size: 14px; }
@@ -115,7 +115,7 @@
 
   @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
   @keyframes slide { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
-  @keyframes fade { to { opacity: 0; transform: translateY(6px); } }
+  @keyframes fade { to { opacity: 0; transform: translateY(-6px); } }
   @keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
   @keyframes sniff { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-2px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
@@ -128,6 +128,7 @@
   .row:hover .x button { opacity: 1; }
   .chip .x { display: none; background: none; border: 0; color: var(--text-dim); padding: 0 2px; cursor: pointer; font-size: 13px; }
   .chip.custom:hover .x { display: inline; }
+  .chip.custom { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
   .chip.custom .n::after { content: " ✦"; color: var(--accent-soft); font-size: 10px; }
   form.add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   form.add input { font: inherit; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); min-width: 240px; flex: 1; max-width: 360px; }
