@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Rat des Tombolas — alerte tombola ZEVENT</title>
+<meta name="description" content="Sois prévenu dès qu'une tombola démarre sur les chaînes du ZEVENT. Gratuit, sans compte, tout se passe dans ton navigateur.">
+<meta property="og:title" content="Rat des Tombolas">
+<meta property="og:description" content="Sois prévenu dès qu'une tombola démarre sur les chaînes du ZEVENT.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐀</text></svg>">
+<style>
+  :root {
+    --bg: #0e0e10; --surface: #18181b; --surface-2: #1f1f23; --surface-3: #2a2a30; --inset: rgba(0,0,0,.28);
+    --border: #2a2a2e; --border-strong: #3a3a40; --text: #efeff1; --text-muted: #adadb8; --text-dim: #6b6b75;
+    --accent: #9147ff; --accent-hover: #7d3ae0; --accent-soft: #bf94ff; --on-accent: #fff;
+    --live: #ff4d6d; --live-soft: rgba(255,77,109,.5); --live-tint: rgba(255,77,109,.07); --ok: #3ddc97; --warn: #f5a623; --warn-soft: rgba(245,166,35,.35);
+    --shadow: 0 10px 30px rgba(0,0,0,.35); --glow: rgba(145,71,255,.45); --radius: 14px; color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f4f7; --surface: #fff; --surface-2: #f0eff5; --surface-3: #e6e4ee; --inset: rgba(0,0,0,.045);
+    --border: #e2e1e8; --border-strong: #cfcdd8; --text: #17171c; --text-muted: #5c5b66; --text-dim: #9391a0;
+    --accent: #7c3aed; --accent-hover: #6b2fd6; --accent-soft: #6d3be0; --live: #e6294f; --live-soft: rgba(230,41,79,.45); --live-tint: rgba(230,41,79,.06);
+    --ok: #16a273; --warn: #d98c00; --warn-soft: rgba(217,140,0,.4); --shadow: 0 10px 30px rgba(20,16,40,.08); --glow: rgba(124,58,237,.3); color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { padding: 24px clamp(14px, 4vw, 48px) 60px; max-width: 1180px; margin: 0 auto; }
+  a { color: var(--accent-soft); text-decoration: none; }
+  button { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; cursor: pointer; transition: background .15s, border-color .15s, transform .1s, color .15s; }
+  button:hover { background: var(--surface-3); border-color: var(--border-strong); }
+  button:active { transform: scale(.97); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+  button.ghost:hover { color: var(--text); background: var(--surface-2); border-color: transparent; }
+  button.icon { padding: 6px 9px; line-height: 1; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px var(--glow)); }
+  .brand h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+  .brand p { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; color: var(--text-muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); flex: none; }
+  .dot.ok { background: var(--ok); color: var(--ok); animation: ping 2.4s infinite; }
+  .dot.warn { background: var(--warn); }
+  .dot.live { background: var(--live); color: var(--live); animation: ping 1.6s infinite; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 30px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .hero p { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 640px; }
+  .hero p b { color: var(--text); }
+  .hero .cta { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-left: auto; }
+  .hero .cta small { color: var(--text-dim); font-size: 12px; }
+  .hero.granted .cta { display: none; }
+
+  section { margin-bottom: 36px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .sec-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .sec-head .count { font-size: 12px; color: var(--text-dim); }
+  .sec-head .spacer { flex: 1; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .card { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 18px 16px; box-shadow: var(--shadow); animation: rise .45s cubic-bezier(.2,.8,.2,1) both; transition: opacity .25s, transform .25s; }
+  .card.leaving { opacity: 0; transform: scale(.97); }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: linear-gradient(var(--live), var(--accent)); }
+  .card .top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 17px; color: var(--on-accent); background: var(--accent); flex: none; text-transform: uppercase; }
+  .card .name { font-weight: 650; font-size: 17px; }
+  .card .since { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .card .since b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card .quote { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--inset); border: 1px solid var(--border); font-size: 14px; overflow-wrap: anywhere; }
+  .card .quote:empty { display: none; }
+  .card .quote small { display: block; margin-top: 4px; color: var(--text-dim); font-size: 12px; }
+  .card .foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
+  .card .foot .spacer { flex: 1; }
+  .empty { border: 1px dashed var(--border); border-radius: var(--radius); padding: 30px 20px; text-align: center; color: var(--text-muted); }
+  .empty .rat { font-size: 34px; display: inline-block; animation: sniff 3s ease-in-out infinite; }
+  .empty p { margin: 8px 0 0; font-size: 14px; }
+
+  .list { display: flex; flex-direction: column; gap: 6px; }
+  .row { display: grid; grid-template-columns: 58px 1fr; gap: 12px; align-items: center; padding: 11px 14px; border-radius: 11px; background: var(--surface); border: 1px solid var(--border); animation: rise .35s ease both; }
+  .row .t { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 13px; }
+  .row .m { min-width: 0; }
+  .row .m .l1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .row .m .l1 a { font-weight: 600; color: var(--text); }
+  .row .m .l1 a:hover { color: var(--accent-soft); }
+  .row .m .l2 { color: var(--text-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
+  .tag.live { color: var(--live); border-color: var(--live-soft); }
+  .tag.test { color: var(--warn); border-color: var(--warn-soft); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .chip { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: var(--surface); border: 1px solid var(--border); font-size: 13.5px; transition: border-color .2s, background .2s, color .2s; }
+  .chip .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+  .chip .n:hover { color: var(--accent-soft); text-decoration: underline; }
+  .chip .r { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chip.quiet, .chip.quiet .n { color: var(--text-dim); }
+  .chip.active { border-color: var(--live-soft); background: var(--live-tint); }
+  .chip.active .n { color: var(--text); font-weight: 600; }
+
+  #toasts { position: fixed; right: 14px; bottom: 14px; left: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 10; pointer-events: none; }
+  .toast { pointer-events: auto; margin-left: auto; display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--live); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); max-width: 360px; cursor: pointer; animation: slide .35s cubic-bezier(.2,.8,.2,1) both; }
+  .toast.out { animation: fade .3s ease both; }
+  .toast .b { font-size: 14px; }
+  .toast .b b { display: block; }
+  .toast .b span { color: var(--text-muted); font-size: 13px; }
+
+  details.how { margin-bottom: 36px; color: var(--text-muted); font-size: 14px; }
+  details.how summary { cursor: pointer; color: var(--text); font-weight: 600; }
+  details.how ul { padding-left: 18px; margin: 10px 0 0; }
+  details.how li { margin: 4px 0; }
+  footer { margin-top: 20px; color: var(--text-dim); font-size: 12.5px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  footer a { color: var(--text-muted); }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes slide { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { to { opacity: 0; transform: translateY(6px); } }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 currentColor; } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @keyframes sniff { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-2px); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } .row .t { display: none; } .hero .cta { margin-left: 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="logo">🐀</span>
+    <div><h1>Rat des Tombolas</h1><p>Sois prévenu dès qu'une tombola démarre sur le ZEVENT.</p></div>
+  </div>
+  <span class="pill"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
+  <div class="actions">
+    <button id="btn-test" class="ghost" title="Affiche une fausse alerte pour vérifier que tout marche">Tester</button>
+    <button id="btn-theme" class="ghost icon" title="Thème"></button>
+  </div>
+</header>
+
+<div class="hero" id="hero">
+  <p><b>Gratuit, sans compte, rien n'est envoyé nulle part.</b> Cette page écoute les chats des 40 plus grosses chaînes du plateau depuis ton navigateur. Quand un modérateur annonce une tombola, tu reçois une notification avec le lien pour participer. <b>Garde cet onglet ouvert</b> (épingle-le), les notifications passent par lui.</p>
+  <div class="cta"><button id="btn-notif" class="primary">Activer les notifications</button><small id="notif-hint"></small></div>
+</div>
+
+<section>
+  <div class="sec-head"><h2>En cours</h2><span class="count" id="live-count"></span></div>
+  <div id="live"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Historique</h2><span class="count" id="hist-count"></span><span class="spacer"></span><button id="btn-clear" class="ghost" hidden>Tout effacer</button></div>
+  <div id="history" class="list"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Chaînes surveillées</h2><span class="count" id="chan-count"></span></div>
+  <div id="chans" class="grid"></div>
+</section>
+
+<details class="how">
+  <summary>Comment ça marche ?</summary>
+  <ul>
+    <li>Ton navigateur se connecte au chat Twitch des chaînes listées, en anonyme, comme un spectateur qui lit le chat.</li>
+    <li>Une tombola est détectée quand un <b>modérateur, le streamer ou le bot de la chaîne</b> l'annonce (« 1€ = 1 ticket », lien de don, « tombola en cours »…). Les messages des viewers ne comptent pas.</li>
+    <li>Elle est considérée terminée quand plus personne d'officiel n'en parle depuis 8 minutes. C'est une estimation : vérifie sur le stream.</li>
+    <li>Rien ne quitte ton navigateur : pas de serveur, pas de compte, pas de suivi. L'historique reste sur ton appareil.</li>
+    <li>Outil indépendant, non affilié au ZEVENT ni à Twitch. Pour donner : <a href="https://zevent.fr/don" target="_blank" rel="noopener">zevent.fr/don</a>.</li>
+  </ul>
+</details>
+
+<footer>
+  <span id="updated">—</span>
+  <a href="https://github.com/GuillaumeSrn/Rat-Des-Tombolas" target="_blank" rel="noopener">Code source</a>
+  <a href="https://zevent.fr" target="_blank" rel="noopener">ZEVENT</a>
+</footer>
+
+<div id="toasts"></div>
+
+<script type="module">
+import { createWatcher } from './core.js';
+import { CHANNELS } from './channels.js';
+
+const $ = (id) => document.getElementById(id);
+const ROLE = { broadcaster: 'le streamer', moderator: 'un modérateur', bot: 'le bot du chat' };
+const twitchUrl = (login) => 'https://twitch.tv/' + login;
+const donUrl = (login) => 'https://zevent.fr/don/' + login;
+const hhmm = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hue = (s) => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+function dur(isoStart, isoEnd) {
+  const m = Math.max(0, Math.round(((isoEnd ? new Date(isoEnd) : Date.now()) - new Date(isoStart)) / 60000));
+  if (m < 1) return 'à l’instant'; if (m < 60) return m + ' min'; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
+}
+const who = (a) => (a.role ? 'annoncée par ' + ROLE[a.role] : 'annonce détectée') + (a.via ? ' de ' + a.via : '');
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+
+/* ── thème ── */
+const THEMES = [['auto', '◐', 'automatique'], ['dark', '☾', 'sombre'], ['light', '☀', 'clair']];
+const sysLight = matchMedia('(prefers-color-scheme: light)');
+function applyTheme(t) { document.documentElement.dataset.theme = t === 'auto' ? (sysLight.matches ? 'light' : 'dark') : t; const [, icon, label] = THEMES.find(x => x[0] === t); $('btn-theme').textContent = icon; $('btn-theme').title = 'Thème : ' + label; }
+applyTheme(store.get('theme') || 'auto');
+sysLight.addEventListener('change', () => { if ((store.get('theme') || 'auto') === 'auto') applyTheme('auto'); });
+$('btn-theme').onclick = () => { const cur = store.get('theme') || 'auto'; const next = THEMES[(THEMES.findIndex(x => x[0] === cur) + 1) % THEMES.length][0]; store.set('theme', next); applyTheme(next); };
+
+/* ── notifications (Notification API ; via service worker sur Android) ── */
+let swReg = null;
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').then(r => swReg = r).catch(() => {});
+const hasNotif = 'Notification' in window;
+function refreshNotif() {
+  const hero = $('hero'), hint = $('notif-hint'), btn = $('btn-notif');
+  if (!hasNotif) { btn.disabled = true; hint.textContent = 'Ton navigateur ne gère pas les notifications (sur iPhone : ajoute la page à l’écran d’accueil).'; return; }
+  hero.classList.toggle('granted', Notification.permission === 'granted');
+  if (Notification.permission === 'denied') { btn.disabled = true; hint.textContent = 'Notifications bloquées dans les réglages du navigateur.'; }
+}
+$('btn-notif').onclick = () => Notification.requestPermission().then(refreshNotif);
+refreshNotif();
+async function notify(a) {
+  if (!hasNotif || Notification.permission !== 'granted') return;
+  const title = `Tombola sur ${a.name}`, opts = { body: a.text || 'Annonce détectée dans le chat.', tag: a.id, data: { url: twitchUrl(a.login) } };
+  try {
+    if (swReg?.showNotification) return await swReg.showNotification(title, opts);
+    const n = new Notification(title, opts); n.onclick = () => { window.open(twitchUrl(a.login)); n.close(); };
+  } catch { try { const n = new Notification(title, opts); n.onclick = () => window.open(twitchUrl(a.login)); } catch {} }
+}
+function toast(a) {
+  const el = document.createElement('div'); el.className = 'toast';
+  el.innerHTML = `<span class="dot live"></span><div class="b"><b>Tombola sur ${esc(a.name)}</b><span>${esc(a.text || who(a))}</span></div>`;
+  el.onclick = () => window.open(twitchUrl(a.login)); $('toasts').appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 8000);
+}
+
+/* ── état et historique (local) ── */
+let state = null;
+let history = JSON.parse(store.get('history') || '[]').filter(a => Date.now() - new Date(a.ts) < 24 * 3600_000);
+const saveHistory = () => store.set('history', JSON.stringify(history.slice(-100)));
+const dismissed = new Set(JSON.parse(store.get('dismissed') || '[]'));
+const key = (c) => c.alertId || (c.chan + '@' + c.activeSince);
+
+/* ── rendu ── */
+function renderConn() {
+  const c = state?.conn; if (!c) return;
+  const map = { connected: ['ok', c.joined < c.total ? `Connexion · ${c.joined}/${c.total} chaînes` : `Connecté · ${c.total} chaînes`], connecting: ['warn', 'Connexion à Twitch…'], reconnecting: ['warn', 'Reconnexion…'], idle: ['', '—'], stopped: ['', 'Arrêté'] };
+  const [cls, label] = map[c.status] || ['', c.status]; $('conn-dot').className = 'dot ' + cls; $('conn-text').textContent = label;
+}
+function cardHTML(c) {
+  return `<div class="top"><div class="avatar" style="background:hsl(${hue(c.login)} 55% 45%)">${esc(c.name[0])}</div>
+      <div><div class="name">${esc(c.name)}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div></div>
+    <p class="quote"></p>
+    <div class="foot"><span class="rate"></span><span class="spacer"></span>
+      <a href="${twitchUrl(c.login)}" target="_blank" rel="noopener"><button>Voir le stream</button></a>
+      <a href="${donUrl(c.login)}" target="_blank" rel="noopener"><button class="primary">Participer</button></a>
+      <button class="ghost" data-ended="${esc(c.alertId)}" title="Marquer comme terminée">Terminée</button></div>`;
+}
+function updateCard(el, c) {
+  const q = el.querySelector('.quote'), html = c.text ? `${esc(c.text)}<small>${esc(ROLE[c.role] || '')}</small>` : '';
+  if (q.innerHTML !== html) q.innerHTML = html; el.querySelector('.rate').textContent = `${c.rate} msg/min`;
+}
+function renderLive() {
+  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(key(c))).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
+  $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
+  const box = $('live');
+  if (!live.length) { if (!box.querySelector('.empty')) box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`; return; }
+  let grid = box.querySelector('.cards'); if (!grid) { box.innerHTML = '<div class="cards"></div>'; grid = box.firstChild; }
+  const keep = new Set();
+  for (const c of live) {
+    keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
+    if (!el || el.dataset.alert !== key(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = key(c); el.innerHTML = cardHTML(c); }
+    updateCard(el, c); grid.appendChild(el);
+  }
+  for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
+}
+function renderChans() {
+  const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate || a.name.localeCompare(b.name));
+  $('chan-count').textContent = `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
+  const grid = $('chans');
+  for (const c of list) {
+    let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
+    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span>`; }
+    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : ''); el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
+    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'); el.lastChild.textContent = c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
+  }
+}
+function renderHistory() {
+  const items = [...history].reverse();
+  $('hist-count').textContent = items.length ? `${items.length} tombola${items.length > 1 ? 's' : ''}` : 'rien pour l’instant';
+  $('btn-clear').hidden = !items.some(a => a.endedAt);
+  $('history').innerHTML = items.map(a => `
+    <div class="row"><span class="t">${hhmm(a.ts)}</span>
+      <div class="m"><div class="l1"><a href="${twitchUrl(a.login)}" target="_blank" rel="noopener">${esc(a.name)}</a>
+        ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}${a.userEnded ? '' : ' env.'}</span>` : '<span class="tag live">en cours</span>'}
+        <span class="tag">${esc(who(a))}</span></div>
+      <div class="l2">${esc(a.text || '')}</div></div></div>`).join('');
+}
+function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
+setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
+
+/* ── watcher ── */
+const watcher = createWatcher({ channels: CHANNELS, on: {
+  state: (s) => { state = s; renderConn(); renderLive(); renderChans(); $('updated').textContent = 'Mis à jour à l’instant'; },
+  alert: (a) => { history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); },
+  end: (a) => { const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = a; saveHistory(); renderHistory(); },
+  log: (m) => console.log(new Date().toISOString(), m),
+} });
+watcher.start();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) watcher.evaluate(); });
+
+/* ── actions ── */
+$('live').addEventListener('click', (e) => {
+  const id = e.target.dataset.ended; if (!id) return;
+  e.target.closest('.card').classList.add('leaving'); setTimeout(() => watcher.endByUser(id), 250);
+});
+$('btn-clear').onclick = () => { if (confirm('Effacer les tombolas terminées de la liste ?')) { history = history.filter(a => !a.endedAt); saveHistory(); renderHistory(); } };
+$('btn-test').onclick = () => { const c = CHANNELS[0]; const a = { id: 'test-' + Date.now(), ts: new Date().toISOString(), login: c.login, name: c.name, text: 'Test : tombola fictive, 1€ = 1 ticket', role: 'moderator', endedAt: new Date().toISOString(), test: true }; history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); };
+renderAll();
+</script>
+</body>
+</html>
