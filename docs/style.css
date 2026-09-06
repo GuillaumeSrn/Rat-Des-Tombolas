@@ -42,6 +42,10 @@
   .dot.ok { background: var(--ok); color: var(--ok); animation: ping 2.4s infinite; }
   .dot.warn { background: var(--warn); }
   .dot.live { background: var(--live); color: var(--live); animation: ping 1.6s infinite; }
+  .dot.wait { background: var(--text-dim); animation: breathe 1.4s ease-in-out infinite; }
+  .chip.pending .n { color: var(--text-muted); }
+  .sec-head .count .dot { display: inline-block; vertical-align: middle; margin-right: 4px; }
+  @keyframes breathe { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .hero { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 44px 18px 20px; margin-bottom: 30px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }

@@ -28,6 +28,8 @@ const dismissed = new Set(store.get('dismissedCards', []));            // cartes
 const customChannels = store.get('customChannels', []);               // [{login, name}] ajoutées par l'utilisateur
 const hiddenChannels = new Set(store.get('hiddenChannels', []));       // chaînes de la liste par défaut retirées par l'utilisateur
 let state = null;
+let bootUntil = Date.now() + 25_000;                                   // phase de démarrage : le temps de rejoindre les chaînes et de recevoir les premiers messages
+const booting = () => !state || state.conn.status !== 'connected' || state.conn.joined < state.conn.total || Date.now() < bootUntil;
 
 /* ═══════════ mesure d'usage (GoatCounter : sans cookie, sans donnée personnelle) ═══════════ */
 const track = (name) => { try { window.goatcounter?.count?.({ path: 'event:' + name, title: name, event: true }); } catch {} };
@@ -121,7 +123,11 @@ function renderLive() {
   const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(cardKey(c))).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
   $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
   const box = $('live');
-  if (!live.length) { if (!box.querySelector('.empty')) box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`; return; }
+  if (!live.length) {
+    const msg = booting() ? `Le rat écoute les chats… ${state?.conn.joined ?? 0}/${state?.conn.total ?? '?'} chaînes rejointes` : 'Aucune tombola en cours. Le rat veille.';
+    let empty = box.querySelector('.empty'); if (!empty) { box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p></p></div>`; empty = box.firstChild; }
+    empty.querySelector('p').textContent = msg; return;
+  }
   let grid = box.querySelector('.cards'); if (!grid) { box.innerHTML = '<div class="cards"></div>'; grid = box.firstChild; }
   const keep = new Set();
   for (const c of live) {
@@ -134,13 +140,15 @@ function renderLive() {
 }
 function renderChans() {
   const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate || a.name.localeCompare(b.name));
-  $('chan-count').textContent = `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
+  const boot = booting();
+  $('chan-count').innerHTML = boot ? `<span class="dot warn"></span> écoute en cours… ${state?.conn.joined ?? 0}/${list.length}` : `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
   const grid = $('chans'), keep = new Set();
   for (const c of list) {
     keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
     if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span><button class="x" title="Ne plus surveiller cette chaîne" data-remove="${esc(c.login)}">✕</button>`; }
-    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : '') + (c.custom ? ' custom' : ''); el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
-    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'); el.querySelector('.r').textContent = c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
+    const pending = boot && c.quiet;
+    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : pending ? 'pending' : c.quiet ? 'quiet' : '') + (c.custom ? ' custom' : ''); el.title = pending ? 'Écoute du chat…' : c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
+    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : pending ? 'wait' : c.quiet ? '' : 'ok'); el.querySelector('.r').textContent = pending ? '…' : c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
   }
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
   const r = $('restore'); r.hidden = !hiddenChannels.size; r.textContent = `Rétablir les ${hiddenChannels.size} chaîne${hiddenChannels.size > 1 ? 's' : ''} retirée${hiddenChannels.size > 1 ? 's' : ''}`;
@@ -160,6 +168,7 @@ function renderHistory() {
   for (const x of items) knownRows.add(x.id);
 }
 function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
+setTimeout(() => { renderLive(); renderChans(); }, 26_000);
 setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
 
 /* ═══════════ watcher ═══════════ */
