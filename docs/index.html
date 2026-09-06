@@ -122,6 +122,20 @@
   @keyframes sniff { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg) translateY(-2px); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
   @media (max-width: 560px) { .row { grid-template-columns: 1fr; } .row .t { display: none; } .hero .cta { margin-left: 0; } }
+  /* ── ajouts ── */
+  .pill.good { color: var(--ok); border-color: rgba(61,220,151,.35); }
+  .pill.bad { color: var(--warn); border-color: var(--warn-soft); }
+  .row { grid-template-columns: 58px 1fr auto; }
+  .row .x button { opacity: .55; }
+  .row:hover .x button { opacity: 1; }
+  .chip .x { display: none; background: none; border: 0; color: var(--text-dim); padding: 0 2px; cursor: pointer; font-size: 13px; }
+  .chip.custom:hover .x { display: inline; }
+  .chip.custom .n::after { content: " ✦"; color: var(--accent-soft); font-size: 10px; }
+  form.add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  form.add input { font: inherit; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); min-width: 240px; flex: 1; max-width: 360px; }
+  form.add input:focus { outline: none; border-color: var(--accent); }
+  form.add small { width: 100%; color: var(--text-dim); font-size: 12px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } }
 </style>
 </head>
 <body>
@@ -132,14 +146,15 @@
     <div><h1>Rat des Tombolas</h1><p>Sois prévenu dès qu'une tombola démarre sur le ZEVENT.</p></div>
   </div>
   <span class="pill"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
+  <button class="pill" id="notif-pill" title="État des notifications système"><span class="dot" id="notif-dot"></span><span id="notif-text">Notifications</span></button>
   <div class="actions">
-    <button id="btn-test" class="ghost" title="Affiche une fausse alerte pour vérifier que tout marche">Tester</button>
+    <button id="btn-test" class="ghost" title="Affiche une fausse alerte (chaîne fictive) pour vérifier que les notifications arrivent">Tester</button>
     <button id="btn-theme" class="ghost icon" title="Thème"></button>
   </div>
 </header>
 
 <div class="hero" id="hero">
-  <p><b>Gratuit, sans compte, rien n'est envoyé nulle part.</b> Cette page écoute les chats des 40 plus grosses chaînes du plateau depuis ton navigateur. Quand un modérateur annonce une tombola, tu reçois une notification avec le lien pour participer. <b>Garde cet onglet ouvert</b> (épingle-le), les notifications passent par lui.</p>
+  <p><b>Gratuit, sans compte, rien n'est envoyé nulle part.</b> Cette page écoute les chats des plus grosses chaînes du plateau depuis ton navigateur. Quand un modérateur annonce une tombola, tu reçois une notification avec le lien pour participer. <b>Garde cet onglet ouvert</b> (épingle-le), les notifications passent par lui.</p>
   <div class="cta"><button id="btn-notif" class="primary">Activer les notifications</button><small id="notif-hint"></small></div>
 </div>
 
@@ -156,6 +171,11 @@
 <section>
   <div class="sec-head"><h2>Chaînes surveillées</h2><span class="count" id="chan-count"></span></div>
   <div id="chans" class="grid"></div>
+  <form class="add" id="add-form" autocomplete="off">
+    <input id="add-input" placeholder="Ajouter une chaîne : pseudo ou lien twitch.tv/…" spellcheck="false">
+    <button class="primary" type="submit">Ajouter</button>
+    <small id="add-hint">Les chaînes ajoutées (✦) sont mémorisées sur cet appareil. Survole-les pour les retirer.</small>
+  </form>
 </section>
 
 <details class="how">
@@ -181,6 +201,7 @@
 import { createWatcher } from './core.js';
 import { CHANNELS } from './channels.js';
 
+/* ═══════════ utilitaires ═══════════ */
 const $ = (id) => document.getElementById(id);
 const ROLE = { broadcaster: 'le streamer', moderator: 'un modérateur', bot: 'le bot du chat' };
 const twitchUrl = (login) => 'https://twitch.tv/' + login;
@@ -193,51 +214,63 @@ function dur(isoStart, isoEnd) {
   if (m < 1) return 'à l’instant'; if (m < 60) return m + ' min'; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0');
 }
 const who = (a) => (a.role ? 'annoncée par ' + ROLE[a.role] : 'annonce détectée') + (a.via ? ' de ' + a.via : '');
-const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const store = {
+  get(k, fallback) { try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
 
-/* ── thème ── */
+/* ═══════════ état local (persistant) ═══════════ */
+// history : tombolas vues sur cet appareil (24 h). Une entrée « en cours » d'une session précédente est close au chargement : le watcher repart de zéro.
+let history = store.get('history', []).filter(a => Date.now() - new Date(a.ts) < 24 * 3600_000).map(a => a.endedAt ? a : { ...a, endedAt: a.ts, stale: true });
+const saveHistory = () => store.set('history', history.slice(-100));
+const dismissed = new Set(store.get('dismissedCards', []));            // cartes masquées à la main (clé de tombola)
+const customChannels = store.get('customChannels', []);               // [{login, name}] ajoutées par l'utilisateur
+let state = null;
+
+/* ═══════════ thème ═══════════ */
 const THEMES = [['auto', '◐', 'automatique'], ['dark', '☾', 'sombre'], ['light', '☀', 'clair']];
 const sysLight = matchMedia('(prefers-color-scheme: light)');
 function applyTheme(t) { document.documentElement.dataset.theme = t === 'auto' ? (sysLight.matches ? 'light' : 'dark') : t; const [, icon, label] = THEMES.find(x => x[0] === t); $('btn-theme').textContent = icon; $('btn-theme').title = 'Thème : ' + label; }
-applyTheme(store.get('theme') || 'auto');
-sysLight.addEventListener('change', () => { if ((store.get('theme') || 'auto') === 'auto') applyTheme('auto'); });
-$('btn-theme').onclick = () => { const cur = store.get('theme') || 'auto'; const next = THEMES[(THEMES.findIndex(x => x[0] === cur) + 1) % THEMES.length][0]; store.set('theme', next); applyTheme(next); };
+applyTheme(store.get('theme', 'auto'));
+sysLight.addEventListener('change', () => { if (store.get('theme', 'auto') === 'auto') applyTheme('auto'); });
+$('btn-theme').onclick = () => { const cur = store.get('theme', 'auto'); const next = THEMES[(THEMES.findIndex(x => x[0] === cur) + 1) % THEMES.length][0]; store.set('theme', next); applyTheme(next); };
 
-/* ── notifications (Notification API ; via service worker sur Android) ── */
-let swReg = null;
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('./sw.js').then(r => swReg = r).catch(() => {});
+/* ═══════════ notifications système ═══════════
+   Desktop : new Notification(). Android : via le service worker (registration.showNotification), seule voie qui marche.
+   L'autorisation est propre à l'origine (domaine + port). */
 const hasNotif = 'Notification' in window;
+let swReg = null;
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('./sw.js').then(r => swReg = r).catch(() => {});
+function notifStatus() { return !hasNotif ? 'unsupported' : Notification.permission; }   // 'granted' | 'denied' | 'default' | 'unsupported'
 function refreshNotif() {
-  const hero = $('hero'), hint = $('notif-hint'), btn = $('btn-notif');
-  if (!hasNotif) { btn.disabled = true; hint.textContent = 'Ton navigateur ne gère pas les notifications (sur iPhone : ajoute la page à l’écran d’accueil).'; return; }
-  hero.classList.toggle('granted', Notification.permission === 'granted');
-  if (Notification.permission === 'denied') { btn.disabled = true; hint.textContent = 'Notifications bloquées dans les réglages du navigateur.'; }
+  const st = notifStatus(), pill = $('notif-pill'), dot = $('notif-dot'), txt = $('notif-text'), hint = $('notif-hint'), btn = $('btn-notif');
+  const map = { granted: ['good', 'ok', 'Notifications activées'], default: ['bad', 'warn', 'Notifications à activer'], denied: ['bad', 'warn', 'Notifications bloquées'], unsupported: ['bad', '', 'Notifications non gérées'] };
+  const [cls, dcls, label] = map[st]; pill.className = 'pill ' + cls; dot.className = 'dot ' + dcls; txt.textContent = label;
+  $('hero').classList.toggle('granted', st === 'granted');
+  btn.disabled = st === 'denied' || st === 'unsupported';
+  hint.textContent = st === 'denied' ? 'Bloquées dans les réglages du navigateur pour ce site : à réautoriser via l’icône à gauche de l’adresse.'
+    : st === 'unsupported' ? 'Ton navigateur ne gère pas les notifications (iPhone : ajoute la page à l’écran d’accueil, puis rouvre-la).' : '';
 }
-$('btn-notif').onclick = () => Notification.requestPermission().then(refreshNotif);
+async function askNotif() { if (!hasNotif) return; await Notification.requestPermission(); refreshNotif(); }
+$('btn-notif').onclick = askNotif; $('notif-pill').onclick = askNotif;
 refreshNotif();
 async function notify(a) {
-  if (!hasNotif || Notification.permission !== 'granted') return;
+  if (notifStatus() !== 'granted') return false;
   const title = `Tombola sur ${a.name}`, opts = { body: a.text || 'Annonce détectée dans le chat.', tag: a.id, data: { url: twitchUrl(a.login) } };
   try {
-    if (swReg?.showNotification) return await swReg.showNotification(title, opts);
-    const n = new Notification(title, opts); n.onclick = () => { window.open(twitchUrl(a.login)); n.close(); };
-  } catch { try { const n = new Notification(title, opts); n.onclick = () => window.open(twitchUrl(a.login)); } catch {} }
+    if (swReg?.showNotification) { await swReg.showNotification(title, opts); return true; }
+    const n = new Notification(title, opts); n.onclick = () => { window.open(twitchUrl(a.login)); n.close(); }; return true;
+  } catch (e) { console.warn('notification impossible :', e); return false; }
 }
-function toast(a) {
+function toast(a, text) {
   const el = document.createElement('div'); el.className = 'toast';
-  el.innerHTML = `<span class="dot live"></span><div class="b"><b>Tombola sur ${esc(a.name)}</b><span>${esc(a.text || who(a))}</span></div>`;
-  el.onclick = () => window.open(twitchUrl(a.login)); $('toasts').appendChild(el);
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 8000);
+  el.innerHTML = `<span class="dot live"></span><div class="b"><b>${esc(text ? a : 'Tombola sur ' + a.name)}</b><span>${esc(text || a.text || who(a))}</span></div>`;
+  if (!text) el.onclick = () => window.open(twitchUrl(a.login));
+  $('toasts').appendChild(el); setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 8000);
 }
 
-/* ── état et historique (local) ── */
-let state = null;
-let history = JSON.parse(store.get('history') || '[]').filter(a => Date.now() - new Date(a.ts) < 24 * 3600_000);
-const saveHistory = () => store.set('history', JSON.stringify(history.slice(-100)));
-const dismissed = new Set(JSON.parse(store.get('dismissed') || '[]'));
-const key = (c) => c.alertId || (c.chan + '@' + c.activeSince);
-
-/* ── rendu ── */
+/* ═══════════ rendu ═══════════ */
+const cardKey = (c) => c.alertId || (c.chan + '@' + c.activeSince);
 function renderConn() {
   const c = state?.conn; if (!c) return;
   const map = { connected: ['ok', c.joined < c.total ? `Connexion · ${c.joined}/${c.total} chaînes` : `Connecté · ${c.total} chaînes`], connecting: ['warn', 'Connexion à Twitch…'], reconnecting: ['warn', 'Reconnexion…'], idle: ['', '—'], stopped: ['', 'Arrêté'] };
@@ -250,14 +283,14 @@ function cardHTML(c) {
     <div class="foot"><span class="rate"></span><span class="spacer"></span>
       <a href="${twitchUrl(c.login)}" target="_blank" rel="noopener"><button>Voir le stream</button></a>
       <a href="${donUrl(c.login)}" target="_blank" rel="noopener"><button class="primary">Participer</button></a>
-      <button class="ghost" data-ended="${esc(c.alertId)}" title="Marquer comme terminée">Terminée</button></div>`;
+      <button class="ghost" data-end="${esc(c.alertId)}" title="Je vois sur le stream que c’est terminé">Terminée</button></div>`;
 }
 function updateCard(el, c) {
   const q = el.querySelector('.quote'), html = c.text ? `${esc(c.text)}<small>${esc(ROLE[c.role] || '')}</small>` : '';
   if (q.innerHTML !== html) q.innerHTML = html; el.querySelector('.rate').textContent = `${c.rate} msg/min`;
 }
 function renderLive() {
-  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(key(c))).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
+  const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(cardKey(c))).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
   $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
   const box = $('live');
   if (!live.length) { if (!box.querySelector('.empty')) box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`; return; }
@@ -265,7 +298,7 @@ function renderLive() {
   const keep = new Set();
   for (const c of live) {
     keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el || el.dataset.alert !== key(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = key(c); el.innerHTML = cardHTML(c); }
+    if (!el || el.dataset.alert !== cardKey(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = cardKey(c); el.innerHTML = cardHTML(c); }
     updateCard(el, c); grid.appendChild(el);
   }
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
@@ -273,45 +306,68 @@ function renderLive() {
 function renderChans() {
   const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate || a.name.localeCompare(b.name));
   $('chan-count').textContent = `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
-  const grid = $('chans');
+  const grid = $('chans'), keep = new Set();
   for (const c of list) {
-    let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span>`; }
-    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : ''); el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
-    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'); el.lastChild.textContent = c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
+    keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
+    if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span>${c.custom ? `<button class="x" title="Retirer cette chaîne" data-remove="${esc(c.login)}">✕</button>` : ''}`; }
+    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : '') + (c.custom ? ' custom' : ''); el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
+    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'); el.querySelector('.r').textContent = c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
   }
+  for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
 }
 function renderHistory() {
   const items = [...history].reverse();
   $('hist-count').textContent = items.length ? `${items.length} tombola${items.length > 1 ? 's' : ''}` : 'rien pour l’instant';
-  $('btn-clear').hidden = !items.some(a => a.endedAt);
+  $('btn-clear').hidden = !items.length;
   $('history').innerHTML = items.map(a => `
-    <div class="row"><span class="t">${hhmm(a.ts)}</span>
-      <div class="m"><div class="l1"><a href="${twitchUrl(a.login)}" target="_blank" rel="noopener">${esc(a.name)}</a>
-        ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${dur(a.ts, a.endedAt)}${a.userEnded ? '' : ' env.'}</span>` : '<span class="tag live">en cours</span>'}
+    <div class="row" data-id="${esc(a.id)}"><span class="t">${hhmm(a.ts)}</span>
+      <div class="m"><div class="l1">${a.test ? `<b>${esc(a.name)}</b>` : `<a href="${twitchUrl(a.login)}" target="_blank" rel="noopener">${esc(a.name)}</a>`}
+        ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${a.stale ? 'session précédente' : dur(a.ts, a.endedAt) + (a.userEnded ? '' : ' env.')}</span>` : '<span class="tag live">en cours</span>'}
         <span class="tag">${esc(who(a))}</span></div>
-      <div class="l2">${esc(a.text || '')}</div></div></div>`).join('');
+      <div class="l2">${esc(a.text || '')}</div></div>
+      <span class="x"><button class="ghost icon" title="Retirer cette ligne" data-del="${esc(a.id)}">✕</button></span></div>`).join('');
 }
 function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
 setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
 
-/* ── watcher ── */
-const watcher = createWatcher({ channels: CHANNELS, on: {
+/* ═══════════ watcher ═══════════ */
+const watcher = createWatcher({ channels: [...CHANNELS, ...customChannels.map(c => ({ ...c, custom: true }))], on: {
   state: (s) => { state = s; renderConn(); renderLive(); renderChans(); $('updated').textContent = 'Mis à jour à l’instant'; },
   alert: (a) => { history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); },
-  end: (a) => { const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = a; saveHistory(); renderHistory(); },
+  end: (a) => { const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = { ...history[i], endedAt: a.endedAt, userEnded: a.userEnded }; saveHistory(); renderHistory(); },
   log: (m) => console.log(new Date().toISOString(), m),
 } });
 watcher.start();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) watcher.evaluate(); });
 
-/* ── actions ── */
+/* ═══════════ actions ═══════════ */
+function endTombola(alertId) { watcher.endByUser(alertId); }   // le callback end() met l'historique à jour
 $('live').addEventListener('click', (e) => {
-  const id = e.target.dataset.ended; if (!id) return;
-  e.target.closest('.card').classList.add('leaving'); setTimeout(() => watcher.endByUser(id), 250);
+  const id = e.target.dataset.end; if (!id) return;
+  e.target.closest('.card').classList.add('leaving'); setTimeout(() => endTombola(id), 250);
 });
-$('btn-clear').onclick = () => { if (confirm('Effacer les tombolas terminées de la liste ?')) { history = history.filter(a => !a.endedAt); saveHistory(); renderHistory(); } };
-$('btn-test').onclick = () => { const c = CHANNELS[0]; const a = { id: 'test-' + Date.now(), ts: new Date().toISOString(), login: c.login, name: c.name, text: 'Test : tombola fictive, 1€ = 1 ticket', role: 'moderator', endedAt: new Date().toISOString(), test: true }; history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); };
+$('history').addEventListener('click', (e) => {
+  const id = e.target.dataset.del; if (!id) return;
+  const a = history.find(x => x.id === id); if (a && !a.endedAt) endTombola(id);   // retirer une tombola en cours = la clore
+  history = history.filter(x => x.id !== id); saveHistory(); renderHistory();
+});
+$('btn-clear').onclick = () => { if (!confirm('Effacer tout l’historique ?')) return; for (const a of history) if (!a.endedAt) endTombola(a.id); history = []; saveHistory(); renderHistory(); };
+$('btn-test').onclick = async () => {
+  if (notifStatus() === 'default') await askNotif();
+  const a = { id: 'test-' + Date.now(), ts: new Date().toISOString(), login: 'twitch', name: 'Chaîne de test', text: 'Test : tombola fictive, 1€ = 1 ticket', role: 'moderator', endedAt: new Date().toISOString(), test: true };
+  history.push(a); saveHistory(); renderHistory(); toast(a);
+  const ok = await notify(a);
+  if (!ok) toast('Pas de notification système', notifStatus() === 'denied' ? 'Bloquées pour ce site dans le navigateur.' : notifStatus() === 'unsupported' ? 'Non gérées par ce navigateur.' : 'Autorisation non accordée.');
+});
+$('add-form').addEventListener('submit', (e) => {
+  e.preventDefault(); const input = $('add-input'), login = watcher.addChannel(input.value);
+  if (!login) { $('add-hint').textContent = 'Pseudo invalide ou chaîne déjà surveillée.'; return; }
+  customChannels.push({ login, name: login }); store.set('customChannels', customChannels); input.value = ''; $('add-hint').textContent = `${login} ajoutée. Les chaînes ajoutées (✦) sont mémorisées sur cet appareil.`;
+});
+$('chans').addEventListener('click', (e) => {
+  const login = e.target.dataset.remove; if (!login) return;
+  watcher.removeChannel(login); const i = customChannels.findIndex(c => c.login === login); if (i >= 0) customChannels.splice(i, 1); store.set('customChannels', customChannels);
+});
 renderAll();
 </script>
 </body>

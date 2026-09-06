@@ -44,10 +44,11 @@ const uid = () => (globalThis.crypto?.randomUUID?.() || Math.random().toString(3
  */
 export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSocketImpl = globalThis.WebSocket, rules = RULES }) {
   const R = rules;
-  const chans = new Map(channels.map(c => ['#' + c.login, {
-    login: c.login, name: c.name, msgs: [], users: new Map(), seen: new Map(), state: 'INACTIVE', activeSince: null, alert: null,
+  const newChan = (c) => ({
+    login: c.login, name: c.name, custom: !!c.custom, msgs: [], users: new Map(), seen: new Map(), state: 'INACTIVE', activeSince: null, alert: null,
     lastText: null, lastRole: null, lastOfficialAt: 0, lastMsgAt: null, endedAt: 0, cooldownUntil: 0, rate: 0,
-  }]));
+  });
+  const chans = new Map(channels.map(c => ['#' + c.login, newChan(c)]));
   const conn = { status: 'idle', joined: 0, reconnects: 0, nick: '' };
   const emit = (k, ...a) => { try { on[k]?.(...a); } catch (e) { on.log?.('erreur callback ' + k + ': ' + e.message); } };
   const log = (m) => emit('log', m);
@@ -100,13 +101,14 @@ export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSo
   function snapshot() {
     const t = now();
     return { ts: new Date(t).toISOString(), conn: { ...conn, total: chans.size }, chans: [...chans.values()].map(c => ({
-      chan: '#' + c.login, login: c.login, name: c.name, state: c.state, alertId: c.alert?.id || null, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null,
+      chan: '#' + c.login, login: c.login, name: c.name, custom: c.custom, state: c.state, alertId: c.alert?.id || null, activeSince: c.activeSince ? new Date(c.activeSince).toISOString() : null,
       rate: c.rate, quiet: !c.lastMsgAt || t - c.lastMsgAt > R.QUIET_AFTER_MS, text: c.state === 'ACTIVE' ? c.lastText : null, role: c.state === 'ACTIVE' ? c.lastRole : null,
     })) };
   }
 
   // ── IRC ──
   let ws, pingTimer, pongTimer, evalTimer, stopping = false, backoff = BACKOFF_MIN; const joined = new Set();
+  const sendRaw = (s) => { if (ws?.readyState === 1) ws.send(s + '\r\n'); };
   const setConn = (status) => { conn.status = status; conn.joined = joined.size; emit('conn', status, { ...conn }); emit('state', snapshot()); };
   function connect() {
     conn.nick = 'justinfan' + (10000 + Math.floor(Math.random() * 89999)); setConn('connecting');
@@ -143,6 +145,17 @@ export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSo
     start() { stopping = false; connect(); evalTimer = setInterval(evaluate, R.EVAL_MS); },
     stop() { stopping = true; clearInterval(evalTimer); try { ws?.close(1000, 'stop'); } catch {} },
     endByUser(alertId) { for (const c of chans.values()) if (c.alert?.id === alertId) { end(c, 'utilisateur'); emit('state', snapshot()); return true; } return false; },
+    /** Ajoute une chaîne à chaud (login Twitch). Retourne false si déjà présente ou invalide. */
+    addChannel(login, name) {
+      login = String(login || '').trim().toLowerCase().replace(/^@|^#|^https?:\/\/(www\.)?twitch\.tv\//, '').replace(/\/.*$/, '');
+      if (!/^[a-z0-9_]{3,25}$/.test(login) || chans.has('#' + login)) return false;
+      chans.set('#' + login, newChan({ login, name: name || login, custom: true })); sendRaw('JOIN #' + login); emit('state', snapshot()); return login;
+    },
+    removeChannel(login) {
+      const c = chans.get('#' + login); if (!c) return false;
+      if (c.state === 'ACTIVE') end(c, 'utilisateur');
+      chans.delete('#' + login); joined.delete('#' + login); sendRaw('PART #' + login); emit('state', snapshot()); return true;
+    },
     snapshot, evaluate, _onChat: onChat,
   };
 }
