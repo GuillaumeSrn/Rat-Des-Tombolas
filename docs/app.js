@@ -29,6 +29,9 @@ const customChannels = store.get('customChannels', []);               // [{login
 const hiddenChannels = new Set(store.get('hiddenChannels', []));       // chaînes de la liste par défaut retirées par l'utilisateur
 let state = null;
 
+/* ═══════════ mesure d'usage (GoatCounter : sans cookie, sans donnée personnelle) ═══════════ */
+const track = (name) => { try { window.goatcounter?.count?.({ path: 'event:' + name, title: name, event: true }); } catch {} };
+
 /* ═══════════ message d'accueil (masquable pour de bon) ═══════════ */
 const hero = $('hero');
 hero.hidden = !!store.get('heroDismissed', false);
@@ -74,7 +77,7 @@ async function askNotif() {
   try { await Notification.requestPermission(); } catch {}
   refreshNotif();
   const st = notifStatus();
-  if (st === 'granted') { $('hero').hidden = true; toast('Notifications activées', 'Tu seras prévenu dès qu’une tombola est annoncée. Garde cet onglet ouvert.'); }
+  if (st === 'granted') { track('notifications-activees'); $('hero').hidden = true; toast('Notifications activées', 'Tu seras prévenu dès qu’une tombola est annoncée. Garde cet onglet ouvert.'); }
   else toast(st === 'denied' ? 'Notifications bloquées' : 'Autorisation en attente', HINTS[st]);
 }
 $('btn-notif').onclick = askNotif; $('notif-pill').onclick = askNotif;
@@ -159,9 +162,10 @@ setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.t
 /* ═══════════ watcher ═══════════ */
 const watcher = createWatcher({ channels: [...CHANNELS.filter(c => !hiddenChannels.has(c.login)), ...customChannels.map(c => ({ ...c, custom: true }))], on: {
   state: (s) => { state = s; renderConn(); renderLive(); renderChans(); $('updated').textContent = 'Mis à jour à l’instant'; },
-  alert: (a) => { history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); },
+  alert: (a) => { history.push(a); saveHistory(); renderHistory(); toast(a); notify(a); track('alerte-tombola'); },
   end: (a) => { const i = history.findIndex(x => x.id === a.id); if (i >= 0) history[i] = { ...history[i], endedAt: a.endedAt, userEnded: a.userEnded }; saveHistory(); renderHistory(); },
   log: (m) => console.log(new Date().toISOString(), m),
+  conn: (status, info) => { if (status === 'reconnecting' && info.reconnects === 3) track('twitch-reconnexions'); },
 } });
 watcher.start();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) watcher.evaluate(); });
@@ -194,7 +198,7 @@ $('add-form').addEventListener('submit', async (e) => {
   const ok = await watcher.awaitChannel(login);
   btn.disabled = false;
   if (!ok) { watcher.removeChannel(login); hint.textContent = ADD_HELP; toast('Chaîne introuvable', `Twitch ne connaît pas « ${login} ». ` + ADD_HELP); return; }
-  customChannels.push({ login, name: login }); store.set('customChannels', customChannels); input.value = '';
+  customChannels.push({ login, name: login }); store.set('customChannels', customChannels); input.value = ''; track('chaine-ajoutee');
   hint.textContent = `${login} ajoutée et surveillée. Les chaînes ajoutées (✦) sont mémorisées sur cet appareil.`; toast('Chaîne ajoutée', `${login} est maintenant surveillée.`);
 });
 $('chans').addEventListener('click', (e) => {
