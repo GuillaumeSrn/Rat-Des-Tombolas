@@ -49,6 +49,12 @@ $('btn-theme').onclick = () => { const cur = store.get('theme', 'auto'); const n
    Desktop : new Notification(). Android : via le service worker (registration.showNotification), seule voie qui marche.
    L'autorisation est propre à l'origine (domaine + port). */
 const hasNotif = 'Notification' in window;
+const UA = navigator.userAgent, isAndroid = /Android/i.test(UA), isIOS = /iPhone|iPad|iPod/i.test(UA), isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const HINTS = {
+  default: isAndroid ? 'Chrome a peut-être masqué la demande : touche l’icône 🔔 barrée dans la barre d’adresse, ou Réglages du site → Notifications → Autoriser.' : 'Autorise les notifications dans la fenêtre qui s’ouvre.',
+  denied: isAndroid ? 'Bloquées pour ce site : touche l’icône 🔒 dans la barre d’adresse → Autorisations → Notifications → Autoriser, puis recharge.' : 'Bloquées pour ce site : clique l’icône à gauche de l’adresse → Notifications → Autoriser, puis recharge.',
+  unsupported: isIOS && !isStandalone ? 'Sur iPhone : Partager → « Sur l’écran d’accueil », puis ouvre la page depuis l’icône. Les notifications marchent seulement dans cette version.' : 'Ton navigateur ne gère pas les notifications.',
+};
 let swReg = null;
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('./sw.js').then(r => swReg = r).catch(() => {});
 function notifStatus() { return !hasNotif ? 'unsupported' : Notification.permission; }   // 'granted' | 'denied' | 'default' | 'unsupported'
@@ -58,10 +64,18 @@ function refreshNotif() {
   const [cls, dcls, label] = map[st]; pill.className = 'pill ' + cls; dot.className = 'dot ' + dcls; txt.textContent = label;
   hero.classList.toggle('granted', st === 'granted');
   btn.disabled = st === 'denied' || st === 'unsupported';
-  hint.textContent = st === 'denied' ? 'Bloquées dans les réglages du navigateur pour ce site : à réautoriser via l’icône à gauche de l’adresse.'
-    : st === 'unsupported' ? 'Ton navigateur ne gère pas les notifications (iPhone : ajoute la page à l’écran d’accueil, puis rouvre-la).' : '';
+  hint.textContent = st === 'denied' ? HINTS.denied : st === 'unsupported' ? HINTS.unsupported : (asked && st === 'default') ? HINTS.default : '';
 }
-async function askNotif() { if (!hasNotif) return; await Notification.requestPermission(); refreshNotif(); }
+let asked = false;
+async function askNotif() {
+  if (!hasNotif) { toast('Notifications non disponibles', HINTS.unsupported); return; }
+  asked = true;
+  try { await Notification.requestPermission(); } catch {}
+  refreshNotif();
+  const st = notifStatus();
+  if (st === 'granted') { $('hero').hidden = true; toast('Notifications activées', 'Tu seras prévenu dès qu’une tombola est annoncée. Garde cet onglet ouvert.'); }
+  else toast(st === 'denied' ? 'Notifications bloquées' : 'Autorisation en attente', HINTS[st]);
+}
 $('btn-notif').onclick = askNotif; $('notif-pill').onclick = askNotif;
 refreshNotif();
 async function notify(a) {
@@ -167,7 +181,7 @@ $('btn-test').onclick = async () => {
   const a = { id: 'test-' + Date.now(), ts: new Date().toISOString(), login: 'twitch', name: 'Chaîne de test', text: 'Test : tombola fictive, 1€ = 1 ticket', role: 'moderator', endedAt: new Date().toISOString(), test: true };
   history.push(a); saveHistory(); renderHistory(); toast(a);
   const ok = await notify(a);
-  if (!ok) toast('Pas de notification système', notifStatus() === 'denied' ? 'Bloquées pour ce site dans le navigateur.' : notifStatus() === 'unsupported' ? 'Non gérées par ce navigateur.' : 'Autorisation non accordée.');
+  if (!ok) toast('Pas de notification système', HINTS[notifStatus()] || 'Autorisation non accordée.');
 };
 $('add-form').addEventListener('submit', (e) => {
   e.preventDefault(); const input = $('add-input'), login = watcher.addChannel(input.value);
