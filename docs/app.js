@@ -206,7 +206,7 @@ $('chans').addEventListener('click', (e) => {
   toast('Chaîne retirée', `${login} n’est plus surveillée sur cet appareil.`);
 });
 $('restore').onclick = () => {
-  for (const login of hiddenChannels) { const c = CHANNELS.find(x => x.login === login); if (c) watcher.addChannel(c.login, c.name); }
+  for (const login of hiddenChannels) { const c = CHANNELS.find(x => x.login === login); if (c) watcher.addChannel(c.login, c.name, false); }
   hiddenChannels.clear(); store.set('hiddenChannels', []); renderChans();
 };
 renderAll();

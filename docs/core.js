@@ -147,10 +147,10 @@ export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSo
     stop() { stopping = true; clearInterval(evalTimer); try { ws?.close(1000, 'stop'); } catch {} },
     endByUser(alertId) { for (const c of chans.values()) if (c.alert?.id === alertId) { end(c, 'utilisateur'); emit('state', snapshot()); return true; } return false; },
     /** Ajoute une chaîne à chaud (login Twitch). Retourne false si déjà présente ou invalide. */
-    addChannel(login, name) {
+    addChannel(login, name, custom = true) {
       login = String(login || '').trim().toLowerCase().replace(/^@|^#|^https?:\/\/(www\.)?twitch\.tv\//, '').replace(/\/.*$/, '');
       if (!/^[a-z0-9_]{3,25}$/.test(login) || chans.has('#' + login)) return false;
-      chans.set('#' + login, newChan({ login, name: name || login, custom: true })); sendRaw('JOIN #' + login); emit('state', snapshot()); return login;
+      chans.set('#' + login, newChan({ login, name: name || login, custom })); sendRaw('JOIN #' + login); emit('state', snapshot()); return login;
     },
     /** Attend la confirmation que la chaîne existe (ROOMSTATE de Twitch). Résout false après timeoutMs. */
     awaitChannel(login, timeoutMs = 6000) {
