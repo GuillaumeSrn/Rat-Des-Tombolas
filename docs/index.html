@@ -19,18 +19,20 @@
     <span class="logo">🐀</span>
     <div><h1>Rat des Tombolas</h1><p>Sois prévenu dès qu'une tombola démarre sur le ZEVENT.</p></div>
   </div>
-  <span class="pill"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
-  <button class="pill" id="notif-pill" title="État des notifications système"><span class="dot" id="notif-dot"></span><span id="notif-text">Notifications</span></button>
-  <div class="actions">
-    <a href="./comment-ca-marche.html"><button class="ghost">Comment ça marche</button></a>
-    <a href="https://zevent.fr/don" target="_blank" rel="noopener"><button class="primary">Donner au ZEVENT</button></a>
+  <div class="bar">
+    <span class="pill" id="conn-pill" title="Connexion au chat Twitch"><span class="dot" id="conn-dot"></span><span id="conn-text">Connexion…</span></span>
+    <button class="pill" id="notif-pill" title="Notifications système : cliquer pour activer"><span class="dot" id="notif-dot"></span><span id="notif-text">Notifications</span></button>
+    <span class="sep"></span>
+    <a href="./comment-ca-marche.html" title="Ce que fait la page, comment une tombola est détectée, les limites"><button class="ghost">Comment ça marche</button></a>
     <button id="btn-test" class="ghost" title="Affiche une fausse alerte pour vérifier que les notifications arrivent">Tester</button>
     <button id="btn-theme" class="ghost icon" title="Thème"></button>
     <a id="coffee" class="coffee" hidden target="_blank" rel="noopener" title="Offrir un café au développeur">☕</a>
+    <a href="https://zevent.fr/don" target="_blank" rel="noopener" title="Faire un don aux associations du ZEVENT"><button class="primary">Donner au ZEVENT</button></a>
   </div>
 </header>
 
-<div class="hero" id="hero">
+<div class="hero" id="hero" hidden>
+  <button class="ghost icon close" id="hero-close" title="Ne plus afficher ce message">✕</button>
   <p><b>Gratuit, sans compte, rien ne quitte ton navigateur.</b> Dès qu'un modérateur annonce une tombola sur une chaîne du plateau, tu reçois une notification avec le lien pour participer. <b>Garde cet onglet ouvert.</b></p>
   <div class="cta"><button id="btn-notif" class="primary">Activer les notifications</button><small id="notif-hint"></small></div>
 </div>
@@ -95,6 +97,11 @@ const dismissed = new Set(store.get('dismissedCards', []));            // cartes
 const customChannels = store.get('customChannels', []);               // [{login, name}] ajoutées par l'utilisateur
 let state = null;
 
+/* ═══════════ message d'accueil (masquable pour de bon) ═══════════ */
+const hero = $('hero');
+hero.hidden = !!store.get('heroDismissed', false);
+$('hero-close').onclick = () => { hero.hidden = true; store.set('heroDismissed', true); };
+
 /* ═══════════ soutien ═══════════ */
 const SUPPORT_URL = 'https://buymeacoffee.com/orsacce';   // lien Buy Me a Coffee du développeur ; vide = icône masquée
 if (SUPPORT_URL) { const c = $('coffee'); c.href = SUPPORT_URL; c.hidden = false; }
@@ -118,7 +125,7 @@ function refreshNotif() {
   const st = notifStatus(), pill = $('notif-pill'), dot = $('notif-dot'), txt = $('notif-text'), hint = $('notif-hint'), btn = $('btn-notif');
   const map = { granted: ['good', 'ok', 'Notifications activées'], default: ['bad', 'warn', 'Notifications à activer'], denied: ['bad', 'warn', 'Notifications bloquées'], unsupported: ['bad', '', 'Notifications non gérées'] };
   const [cls, dcls, label] = map[st]; pill.className = 'pill ' + cls; dot.className = 'dot ' + dcls; txt.textContent = label;
-  $('hero').classList.toggle('granted', st === 'granted');
+  hero.classList.toggle('granted', st === 'granted');
   btn.disabled = st === 'denied' || st === 'unsupported';
   hint.textContent = st === 'denied' ? 'Bloquées dans les réglages du navigateur pour ce site : à réautoriser via l’icône à gauche de l’adresse.'
     : st === 'unsupported' ? 'Ton navigateur ne gère pas les notifications (iPhone : ajoute la page à l’écran d’accueil, puis rouvre-la).' : '';

@@ -25,8 +25,15 @@
   button.icon { padding: 6px 9px; line-height: 1; }
   button:disabled { opacity: .5; cursor: default; }
 
-  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
-  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; margin-bottom: 22px; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .bar .sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+  .bar > *, .bar button, .bar .pill, .bar .coffee { height: 36px; }
+  .bar a { display: inline-flex; }
+  .bar a > button { height: 36px; }
+  .bar .pill { padding: 0 12px; }
+  .bar .icon { width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .brand { display: flex; align-items: center; gap: 12px; }
   .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px var(--glow)); }
   .brand h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
   .brand p { margin: 0; font-size: 13px; color: var(--text-muted); }
@@ -37,7 +44,10 @@
   .dot.live { background: var(--live); color: var(--live); animation: ping 1.6s infinite; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  .hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 30px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .hero { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 44px 18px 20px; margin-bottom: 30px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .hero .close { position: absolute; top: 8px; right: 8px; opacity: .6; }
+  .hero .close:hover { opacity: 1; }
+  .hero[hidden] { display: none; }
   .hero p { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 640px; }
   .hero p b { color: var(--text); }
   .hero .cta { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-left: auto; }
@@ -128,7 +138,7 @@
   /* ── header commun ── */
   a.brand { color: inherit; }
   .actions a { display: inline-flex; }
-  .coffee { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; color: var(--text-dim); font-size: 16px; text-decoration: none; transition: color .15s, background .15s; }
+  .coffee { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; color: var(--text-dim); font-size: 16px; text-decoration: none; transition: color .15s, background .15s; }
   .coffee:hover { color: var(--warn); background: var(--surface-2); }
   main { margin: 0 auto; }
   /* ── rat qui trottine ── */
@@ -151,3 +161,4 @@
   /* ── historique : texte complet au survol ── */
   .row .m .l2 { transition: white-space 0s; }
   .row:hover .m .l2 { white-space: normal; overflow: visible; }
+  @media (max-width: 760px) { header { flex-direction: column; align-items: stretch; } .bar { margin-left: 0; } .bar .sep { display: none; } }
