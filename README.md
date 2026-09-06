@@ -1,6 +1,6 @@
 # 🐀 Rat des Tombolas
 
-**https://ratdestombolas.fr**
+**https://ratdestombolas.com**
 
 Sois prévenu dès qu'une tombola démarre sur les chaînes du ZEVENT.
 
