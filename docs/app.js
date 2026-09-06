@@ -28,6 +28,8 @@ const dismissed = new Set(store.get('dismissedCards', []));            // cartes
 const customChannels = store.get('customChannels', []);               // [{login, name}] ajoutées par l'utilisateur
 const hiddenChannels = new Set(store.get('hiddenChannels', []));       // chaînes de la liste par défaut retirées par l'utilisateur
 let state = null;
+let bootUntil = Date.now() + 25_000;                                   // phase de démarrage : le temps de rejoindre les chaînes et de recevoir les premiers messages
+const booting = () => !state || state.conn.status !== 'connected' || state.conn.joined < state.conn.total || Date.now() < bootUntil;
 
 /* ═══════════ mesure d'usage (GoatCounter : sans cookie, sans donnée personnelle) ═══════════ */
 const track = (name) => { try { window.goatcounter?.count?.({ path: 'event:' + name, title: name, event: true }); } catch {} };
@@ -107,56 +109,66 @@ function renderConn() {
 function cardHTML(c) {
   return `<div class="top"><div class="avatar" style="background:hsl(${hue(c.login)} 55% 45%)">${esc(c.name[0])}</div>
       <div><div class="name">${esc(c.name)}</div><div class="since"><span class="dot live"></span>depuis <b data-since="${esc(c.activeSince)}">${dur(c.activeSince)}</b></div></div></div>
-    <p class="quote"></p>
+    <p class="quote" data-open="0"></p>
     <div class="foot"><span class="rate"></span><span class="spacer"></span>
       <a href="${twitchUrl(c.login)}" target="_blank" rel="noopener"><button>Voir le stream</button></a>
       <a href="${donUrl(c.login)}" target="_blank" rel="noopener"><button class="primary">Participer</button></a>
       <button class="ghost" data-end="${esc(c.alertId)}" title="Je vois sur le stream que c’est terminé">Terminée</button></div>`;
 }
 function updateCard(el, c) {
-  const q = el.querySelector('.quote'), html = c.text ? `${esc(c.text)}<small>${esc(ROLE[c.role] || '')}</small>` : '';
+  const q = el.querySelector('.quote'), html = c.text ? `<span class="txt">${esc(c.text)}</span><small>${esc(ROLE[c.role] || '')} · cliquer pour tout lire</small>` : '';
   if (q.innerHTML !== html) q.innerHTML = html; el.querySelector('.rate').textContent = `${c.rate} msg/min`;
 }
 function renderLive() {
   const live = (state?.chans || []).filter(c => c.state === 'ACTIVE' && !dismissed.has(cardKey(c))).sort((a, b) => new Date(b.activeSince) - new Date(a.activeSince));
   $('live-count').textContent = live.length ? `${live.length} tombola${live.length > 1 ? 's' : ''}` : '';
   const box = $('live');
-  if (!live.length) { if (!box.querySelector('.empty')) box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p>Aucune tombola en cours. Le rat veille.</p></div>`; return; }
+  if (!live.length) {
+    const msg = booting() ? `Le rat écoute les chats… ${state?.conn.joined ?? 0}/${state?.conn.total ?? '?'} chaînes rejointes` : 'Aucune tombola en cours. Le rat veille.';
+    let empty = box.querySelector('.empty'); if (!empty) { box.innerHTML = `<div class="empty"><span class="rat">🐀</span><p></p></div>`; empty = box.firstChild; }
+    empty.querySelector('p').textContent = msg; return;
+  }
   let grid = box.querySelector('.cards'); if (!grid) { box.innerHTML = '<div class="cards"></div>'; grid = box.firstChild; }
   const keep = new Set();
   for (const c of live) {
     keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
-    if (!el || el.dataset.alert !== cardKey(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card'; el.dataset.chan = c.chan; el.dataset.alert = cardKey(c); el.innerHTML = cardHTML(c); }
-    updateCard(el, c); grid.appendChild(el);
+    if (!el || el.dataset.alert !== cardKey(c)) { el?.remove(); el = document.createElement('article'); el.className = 'card enter'; el.dataset.chan = c.chan; el.dataset.alert = cardKey(c); el.innerHTML = cardHTML(c); el.addEventListener('animationend', () => el.classList.remove('enter'), { once: true }); }
+    updateCard(el, c);
+    if (grid.children[[...keep].length - 1] !== el) grid.appendChild(el);   // ne déplace le nœud que si l'ordre a changé (déplacer relance les animations)
   }
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
 }
 function renderChans() {
   const list = [...(state?.chans || [])].sort((a, b) => (b.state === 'ACTIVE') - (a.state === 'ACTIVE') || a.quiet - b.quiet || b.rate - a.rate || a.name.localeCompare(b.name));
-  $('chan-count').textContent = `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
+  const boot = booting();
+  $('chan-count').innerHTML = boot ? `<span class="dot warn"></span> écoute en cours… ${state?.conn.joined ?? 0}/${list.length}` : `${list.length} chaînes · ${list.filter(c => !c.quiet).length} avec du chat`;
   const grid = $('chans'), keep = new Set();
   for (const c of list) {
     keep.add(c.chan); let el = grid.querySelector(`[data-chan="${CSS.escape(c.chan)}"]`);
     if (!el) { el = document.createElement('div'); el.dataset.chan = c.chan; el.innerHTML = `<span class="dot"></span><a class="n" href="${twitchUrl(c.login)}" target="_blank" rel="noopener">${esc(c.name)}</a><span class="r"></span><button class="x" title="Ne plus surveiller cette chaîne" data-remove="${esc(c.login)}">✕</button>`; }
-    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : c.quiet ? 'quiet' : '') + (c.custom ? ' custom' : ''); el.title = c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
-    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : c.quiet ? '' : 'ok'); el.querySelector('.r').textContent = c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
+    const pending = boot && c.quiet;
+    el.className = 'chip ' + (c.state === 'ACTIVE' ? 'active' : pending ? 'pending' : c.quiet ? 'quiet' : '') + (c.custom ? ' custom' : ''); el.title = pending ? 'Écoute du chat…' : c.quiet ? 'Chat silencieux' : c.rate + ' messages par minute';
+    el.firstChild.className = 'dot ' + (c.state === 'ACTIVE' ? 'live' : pending ? 'wait' : c.quiet ? '' : 'ok'); el.querySelector('.r').textContent = pending ? '…' : c.quiet ? '' : c.rate + '/min'; grid.appendChild(el);
   }
   for (const el of [...grid.children]) if (!keep.has(el.dataset.chan)) el.remove();
   const r = $('restore'); r.hidden = !hiddenChannels.size; r.textContent = `Rétablir les ${hiddenChannels.size} chaîne${hiddenChannels.size > 1 ? 's' : ''} retirée${hiddenChannels.size > 1 ? 's' : ''}`;
 }
+const knownRows = new Set();
 function renderHistory() {
   const items = [...history].reverse();
   $('hist-count').textContent = items.length ? `${items.length} tombola${items.length > 1 ? 's' : ''}` : 'rien pour l’instant';
   $('btn-clear').hidden = !items.length;
   $('history').innerHTML = items.map(a => `
-    <div class="row" data-id="${esc(a.id)}"><span class="t">${hhmm(a.ts)}</span>
+    <div class="row${knownRows.has(a.id) ? '' : ' enter'}" data-id="${esc(a.id)}"><span class="t">${hhmm(a.ts)}</span>
       <div class="m"><div class="l1">${a.test ? `<b>${esc(a.name)}</b>` : `<a href="${twitchUrl(a.login)}" target="_blank" rel="noopener">${esc(a.name)}</a>`}
         ${a.test ? '<span class="tag test">test</span>' : a.endedAt ? `<span class="tag">${a.stale ? 'session précédente' : dur(a.ts, a.endedAt) + (a.userEnded ? '' : ' env.')}</span>` : '<span class="tag live">en cours</span>'}
         <span class="tag">${esc(who(a))}</span></div>
       <div class="l2" title="${esc(a.text || '')}">${esc(a.text || '')}</div></div>
       <span class="x"><button class="ghost icon" title="Retirer cette ligne" data-del="${esc(a.id)}">✕</button></span></div>`).join('');
+  for (const x of items) knownRows.add(x.id);
 }
 function renderAll() { renderConn(); renderLive(); renderChans(); renderHistory(); }
+setTimeout(() => { renderLive(); renderChans(); }, 26_000);
 setInterval(() => { document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(el.dataset.since)); if (state) $('updated').textContent = 'Mis à jour ' + dur(state.ts).replace(/^(\d)/, 'il y a $1'); }, 5000);
 
 /* ═══════════ watcher ═══════════ */
@@ -173,6 +185,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) watc
 /* ═══════════ actions ═══════════ */
 function endTombola(alertId) { watcher.endByUser(alertId); }   // le callback end() met l'historique à jour
 $('live').addEventListener('click', (e) => {
+  const q = e.target.closest('.quote'); if (q) { q.classList.toggle('open'); return; }
   const id = e.target.dataset.end; if (!id) return;
   e.target.closest('.card').classList.add('leaving'); setTimeout(() => endTombola(id), 250);
 });
