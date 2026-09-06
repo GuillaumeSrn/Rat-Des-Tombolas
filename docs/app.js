@@ -183,10 +183,17 @@ $('btn-test').onclick = async () => {
   const ok = await notify(a);
   if (!ok) toast('Pas de notification système', HINTS[notifStatus()] || 'Autorisation non accordée.');
 };
-$('add-form').addEventListener('submit', (e) => {
-  e.preventDefault(); const input = $('add-input'), login = watcher.addChannel(input.value);
-  if (!login) { $('add-hint').textContent = 'Pseudo invalide ou chaîne déjà surveillée.'; return; }
-  customChannels.push({ login, name: login }); store.set('customChannels', customChannels); input.value = ''; $('add-hint').textContent = `${login} ajoutée. Les chaînes ajoutées (✦) sont mémorisées sur cet appareil.`;
+const ADD_HELP = 'Le nom, c’est ce qui suit twitch.tv/ dans l’adresse de la chaîne. Tu peux coller l’adresse entière.';
+$('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault(); const input = $('add-input'), hint = $('add-hint'), btn = e.target.querySelector('button');
+  const login = watcher.addChannel(input.value);
+  if (!login) { hint.textContent = 'Pseudo invalide ou chaîne déjà surveillée. ' + ADD_HELP; return; }
+  btn.disabled = true; hint.textContent = `Vérification de « ${login} » auprès de Twitch…`;
+  const ok = await watcher.awaitChannel(login);
+  btn.disabled = false;
+  if (!ok) { watcher.removeChannel(login); hint.textContent = ADD_HELP; toast('Chaîne introuvable', `Twitch ne connaît pas « ${login} ». ` + ADD_HELP); return; }
+  customChannels.push({ login, name: login }); store.set('customChannels', customChannels); input.value = '';
+  hint.textContent = `${login} ajoutée et surveillée. Les chaînes ajoutées (✦) sont mémorisées sur cet appareil.`; toast('Chaîne ajoutée', `${login} est maintenant surveillée.`);
 });
 $('chans').addEventListener('click', (e) => {
   const login = e.target.dataset.remove; if (!login) return;

@@ -45,7 +45,7 @@ const uid = () => (globalThis.crypto?.randomUUID?.() || Math.random().toString(3
 export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSocketImpl = globalThis.WebSocket, rules = RULES }) {
   const R = rules;
   const newChan = (c) => ({
-    login: c.login, name: c.name, custom: !!c.custom, msgs: [], users: new Map(), seen: new Map(), state: 'INACTIVE', activeSince: null, alert: null,
+    login: c.login, name: c.name, custom: !!c.custom, exists: false, msgs: [], users: new Map(), seen: new Map(), state: 'INACTIVE', activeSince: null, alert: null,
     lastText: null, lastRole: null, lastOfficialAt: 0, lastMsgAt: null, endedAt: 0, cooldownUntil: 0, rate: 0,
   });
   const chans = new Map(channels.map(c => ['#' + c.login, newChan(c)]));
@@ -129,6 +129,7 @@ export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSo
         switch (p.cmd) {
           case 'PONG': clearTimeout(pongTimer); break;
           case 'JOIN': if (p.prefix?.startsWith(conn.nick + '!')) { joined.add(p.params[0] || p.trailing); conn.joined = joined.size; if (joined.size === chans.size) { log(`${joined.size} chaînes rejointes`); setConn('connected'); } } break;
+          case 'ROOMSTATE': { const c = chans.get(p.params[0]); if (c && !c.exists) { c.exists = true; emit('exists', c.login); } break; }
           case 'RECONNECT': log('reconnexion demandée par Twitch'); ws.close(4001, 'server reconnect'); break;
           case 'PRIVMSG': case 'USERNOTICE': onChat(p.params[0], p.tags.login || p.prefix?.split('!')[0] || '', p.tags.badges || '', p.trailing, p.tags['reply-parent-user-login']); break;
         }
@@ -150,6 +151,11 @@ export function createWatcher({ channels, on = {}, now = () => Date.now(), WebSo
       login = String(login || '').trim().toLowerCase().replace(/^@|^#|^https?:\/\/(www\.)?twitch\.tv\//, '').replace(/\/.*$/, '');
       if (!/^[a-z0-9_]{3,25}$/.test(login) || chans.has('#' + login)) return false;
       chans.set('#' + login, newChan({ login, name: name || login, custom: true })); sendRaw('JOIN #' + login); emit('state', snapshot()); return login;
+    },
+    /** Attend la confirmation que la chaîne existe (ROOMSTATE de Twitch). Résout false après timeoutMs. */
+    awaitChannel(login, timeoutMs = 6000) {
+      const c = chans.get('#' + login); if (!c) return Promise.resolve(false); if (c.exists) return Promise.resolve(true);
+      return new Promise(resolve => { const t0 = Date.now(); const timer = setInterval(() => { if (c.exists) { clearInterval(timer); resolve(true); } else if (Date.now() - t0 > timeoutMs) { clearInterval(timer); resolve(false); } }, 200); });
     },
     removeChannel(login) {
       const c = chans.get('#' + login); if (!c) return false;
