@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Comment ça marche — Rat des Tombolas</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐀</text></svg>">
+<link rel="stylesheet" href="./style.css">
+<style>
+  main { max-width: 720px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; }
+  p, li { color: var(--text-muted); font-size: 15px; }
+  p b, li b { color: var(--text); }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; }
+  .back { display: inline-block; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="./">
+    <span class="logo">🐀</span>
+    <div><h1>Rat des Tombolas</h1><p>Comment ça marche</p></div>
+  </a>
+  <div class="actions"><a href="./"><button class="primary">← Retour</button></a></div>
+</header>
+<main>
+  <h2>En une phrase</h2>
+  <p>La page écoute les chats Twitch des grosses chaînes du ZEVENT depuis ton navigateur, et te prévient quand un modérateur annonce une tombola.</p>
+
+  <h2>Ce qui se passe dans ton navigateur</h2>
+  <ul>
+    <li>Ton navigateur se connecte au chat Twitch des chaînes listées, <b>en anonyme</b>, exactement comme un spectateur qui lit le chat sans être connecté.</li>
+    <li>Il n'y a <b>aucun serveur</b> derrière cette page : pas de compte, pas de suivi, rien n'est envoyé nulle part. L'historique et tes réglages restent sur ton appareil.</li>
+    <li>Les notifications passent par l'onglet. <b>Garde-le ouvert</b>, épingle-le. Sur iPhone, ajoute la page à l'écran d'accueil.</li>
+  </ul>
+
+  <h2>Comment une tombola est détectée</h2>
+  <ul>
+    <li>Une tombola démarre quand <b>un modérateur, le streamer ou le bot de la chaîne</b> l'annonce dans le chat : « 1€ = 1 ticket », un lien de don, « tombola en cours », « participez »…</li>
+    <li>Les messages des viewers ne comptent pas : ils réclament des tombolas plus qu'ils ne les annoncent.</li>
+    <li>Les questions, les réponses à un viewer et les annonces au futur (« prochaine tombola à 21h ») sont ignorées.</li>
+    <li>Quand un modérateur relaie la tombola d'une autre chaîne avec son lien de don, l'alerte est attribuée à la bonne chaîne.</li>
+  </ul>
+
+  <h2>Comment une tombola est considérée terminée</h2>
+  <p>Quand plus personne d'officiel n'en parle depuis 8 minutes et que le chat est passé à autre chose. C'est une <b>estimation</b> : les durées affichées sont marquées « env. ». Si tu vois sur le stream que c'est fini, clique « Terminée ».</p>
+
+  <h2>Les chaînes surveillées</h2>
+  <p>Les streamers présents sur le plateau du ZEVENT, classés par cagnotte, plus les plus grosses audiences du soir. Tu peux ajouter n'importe quelle chaîne Twitch depuis la page principale, elle est mémorisée sur ton appareil.</p>
+
+  <h2>Limites</h2>
+  <ul>
+    <li>Une tombola annoncée seulement à l'oral, sans message d'un modérateur, n'est pas détectée.</li>
+    <li>Deux tombolas enchaînées à moins de 10 minutes d'écart sur la même chaîne peuvent n'en faire qu'une.</li>
+    <li>La fin est estimée, pas annoncée. Vérifie toujours sur le stream avant de donner.</li>
+  </ul>
+
+  <h2>Indépendance</h2>
+  <p>Outil indépendant, non affilié au ZEVENT ni à Twitch. Code source ouvert sur <a href="https://github.com/GuillaumeSrn/Rat-Des-Tombolas" target="_blank" rel="noopener">GitHub</a>. Pour donner aux associations : <a href="https://zevent.fr/don" target="_blank" rel="noopener">zevent.fr/don</a>.</p>
+</main>
+</body>
+</html>
