@@ -53,7 +53,7 @@ const hasNotif = 'Notification' in window;
 const UA = navigator.userAgent, isAndroid = /Android/i.test(UA), isIOS = /iPhone|iPad|iPod/i.test(UA), isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const HINTS = {
   default: isAndroid ? 'Sur Android : Paramètres du téléphone → Notifications → ton navigateur (Chrome…) → Autoriser. Puis reviens ici et touche à nouveau « Activer ».' : 'Autorise les notifications dans la fenêtre qui s’ouvre.',
-  denied: isAndroid ? 'Sur Android : Paramètres du téléphone → Notifications → ton navigateur (Chrome…) → Autoriser. Puis, dans le navigateur, icône 🔒 à gauche de l’adresse → Notifications → Autoriser, et recharge.' : 'Bloquées pour ce site : clique l’icône à gauche de l’adresse → Notifications → Autoriser, puis recharge.',
+  denied: isAndroid ? 'Sur Android : Paramètres du téléphone → Notifications → ton navigateur (Chrome…) → Autoriser. Puis, dans le navigateur, menu ⚙️ Paramètres → Paramètres du site → Notifications → Autoriser, et recharge.' : 'Bloquées pour ce site : clique l’icône à gauche de l’adresse → Notifications → Autoriser, puis recharge.',
   unsupported: isIOS && !isStandalone ? 'Sur iPhone : Partager → « Sur l’écran d’accueil », puis ouvre la page depuis l’icône. Les notifications marchent seulement dans cette version.' : 'Ton navigateur ne gère pas les notifications.',
 };
 let swReg = null;
