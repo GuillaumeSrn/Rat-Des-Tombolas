@@ -19,7 +19,7 @@ const EXCLUDED_CHANS = new Set(['zevent']); // chaînes jamais surveillées (cha
 const FALLBACK_CHANS = ["mastu","mistermv","domingo","anyme023","antoinedaniel","zerator","mcflyetcarlito","joyca","ponce","sylvainlyve","joueur_du_grenier","amixem","florence","clemovitch","jltomy","nico_la","mynthos","enjoyphoenix","laink","alphacast","theguill84","byilhann","littlebigwhale","etoiles","sebjdg","shisheyu","flamby","dfg","hortyunderscore","areliann","samueletienne","gom4rt","avamind","ultia","pressea","linca","alderiate","bagherajones","jirayalecochon","traytonlol"];
 let CHANS = [];                          // logins Twitch, sans '#'
 const DISPLAY = new Map();               // login -> nom affiché par le ZEVENT
-const MATCH_RX = /\btombola\b/i;
+const MATCH_RX = /\btombola\b|1 ?(€|euros?|e)\s*(=|→|->|:)\s*1 ?(tickets?|chances?|participations?|entr[ée]es?|billets?)/i;   // « tombola », ou « 1€ = 1 ticket / 1 chance »
 const LOG_RX = /tombola|tirage|ticket|gagnant|\blots?\b|giveaway/i;   // plus large que la détection : sert à rejouer d'autres mots-clés hors ligne
 
 // ── Détection : une tombola ne démarre que sur une ANNONCE OFFICIELLE (streamer, modérateur, bot connu), jamais sur le chat seul.

@@ -2,7 +2,7 @@
 // Module sans dépendance ni DOM, utilisable aussi sous Node 22 pour les tests.
 
 export const RULES = {
-  MATCH_RX: /\btombola\b/i,
+  MATCH_RX: /\btombola\b|1 ?(€|euros?|e)\s*(=|→|->|:)\s*1 ?(tickets?|chances?|participations?|entr[ée]es?|billets?)/i,   // « tombola », ou « 1€ = 1 ticket / 1 chance » (annonces sans le mot)
   STRONG_RX: /1 ?(€|euros?)|tickets?|zevent\.fr\/don|en cours/i,          // annonce sûre (humains et bots)
   MEDIUM_RX: /particip|à gagner|remporter|\ben tombola\b|mise en jeu|faites (vos|des|un) dons?|plus que \d+ ?min|pseudo/i, // humains uniquement
   QUESTION_RX: /\?/,
